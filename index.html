@@ -1836,17 +1836,23 @@
               notam.scheduleParsingMode
             );
 
+      /*
+       * 기타 NOTAM은 영향 판정 대상이 아니므로
+       * 영향 운항편 버튼과 운항 목록을 만들지 않습니다.
+       */
       const schedulesHtml =
-        notam.schedules
-          .map(
-            function (schedule) {
-              return buildScheduleItemHtml(
-                schedule,
-                other
-              );
-            }
-          )
-          .join("");
+        other
+          ? ""
+          : notam.schedules
+              .map(
+                function (schedule) {
+                  return buildScheduleItemHtml(
+                    schedule,
+                    false
+                  );
+                }
+              )
+              .join("");
 
       const scheduleListId =
         "schedule-list-" +
@@ -1856,6 +1862,41 @@
           /[^a-zA-Z0-9_-]/g,
           "-"
         );
+
+      const scheduleSectionHtml =
+        other
+          ? ""
+          : (
+              '<div class="schedule-toggle-row">' +
+
+                '<button class="schedule-toggle-button" ' +
+                  'type="button" ' +
+                  'aria-expanded="false" ' +
+                  'data-target-id="' +
+                    escapeAttribute(
+                      scheduleListId
+                    ) +
+                  '">' +
+
+                  "영향 운항편 " +
+                  '<span class="badge badge-red">' +
+                    notam.schedules.length +
+                    "편" +
+                  "</span>" +
+                  '<span class="toggle-arrow">▼</span>' +
+
+                "</button>" +
+
+              "</div>" +
+
+              '<div id="' +
+                escapeAttribute(
+                  scheduleListId
+                ) +
+                '" class="schedule-list">' +
+                schedulesHtml +
+              "</div>"
+            );
 
       return (
         '<article class="notam-card' +
@@ -1957,41 +1998,7 @@
 
           "</div>" +
 
-          '<div class="schedule-toggle-row">' +
-
-            '<button class="schedule-toggle-button" ' +
-              'type="button" ' +
-              'aria-expanded="false" ' +
-              'data-target-id="' +
-                escapeAttribute(
-                  scheduleListId
-                ) +
-              '">' +
-
-              "영향 운항편 " +
-              '<span class="badge ' +
-                (
-                  other
-                    ? "badge-other"
-                    : "badge-red"
-                ) +
-              '">' +
-                notam.schedules.length +
-                "편" +
-              "</span>" +
-              '<span class="toggle-arrow">▼</span>' +
-
-            "</button>" +
-
-          "</div>" +
-
-          '<div id="' +
-            escapeAttribute(
-              scheduleListId
-            ) +
-            '" class="schedule-list">' +
-            schedulesHtml +
-          "</div>" +
+          scheduleSectionHtml +
 
         "</article>"
       );
@@ -2786,9 +2793,19 @@
             return;
           }
 
-          const latLngs =
+          let latLngs =
             parseKmlCoordinates(
               coordinatesNode.textContent
+            );
+
+          /*
+           * 국제 날짜변경선(±180도)을 통과하는 루트는
+           * -179도와 +179도가 지도 양쪽 끝으로 갈라지지 않도록
+           * 이전 좌표에 가장 가까운 연속 경도로 보정합니다.
+           */
+          latLngs =
+            unwrapRouteLongitudes(
+              latLngs
             );
 
           if (
@@ -3046,7 +3063,7 @@
         lineStrings.length === 0 &&
         gxCoordinates.length > 1
       ) {
-        const latLngs =
+        let latLngs =
           gxCoordinates
             .map(
               function (node) {
@@ -3088,6 +3105,11 @@
               }
             )
             .filter(Boolean);
+
+        latLngs =
+          unwrapRouteLongitudes(
+            latLngs
+          );
 
         if (
           latLngs.length > 1
@@ -3154,6 +3176,74 @@
         pointCount:
           pointCount
       };
+    }
+
+
+    function unwrapRouteLongitudes(
+      latLngs
+    ) {
+      if (
+        !Array.isArray(
+          latLngs
+        ) ||
+        latLngs.length === 0
+      ) {
+        return [];
+      }
+
+      const unwrapped =
+        [
+          [
+            Number(
+              latLngs[0][0]
+            ),
+            Number(
+              latLngs[0][1]
+            )
+          ]
+        ];
+
+      for (
+        let i = 1;
+        i < latLngs.length;
+        i++
+      ) {
+        const lat =
+          Number(
+            latLngs[i][0]
+          );
+
+        let lng =
+          Number(
+            latLngs[i][1]
+          );
+
+        const previousLng =
+          unwrapped[
+            unwrapped.length - 1
+          ][1];
+
+        while (
+          lng - previousLng > 180
+        ) {
+          lng -= 360;
+        }
+
+        while (
+          lng - previousLng < -180
+        ) {
+          lng += 360;
+        }
+
+        unwrapped.push(
+          [
+            lat,
+            lng
+          ]
+        );
+      }
+
+      return unwrapped;
     }
 
 
