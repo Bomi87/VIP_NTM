@@ -3037,9 +3037,9 @@
                   const lon = Number(parts[0]);
                   const lat = Number(parts[1]);
 
-                  return (
-                    Number.isFinite(lat) &&
-                    Number.isFinite(lon)
+                  return isUsableRouteCoordinate(
+                    lat,
+                    lon
                   )
                     ? [lat, lon]
                     : null;
@@ -3272,6 +3272,37 @@
     }
 
 
+    function isUsableRouteCoordinate(
+      lat,
+      lng
+    ) {
+      if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng) ||
+        lat < -90 ||
+        lat > 90 ||
+        lng < -180 ||
+        lng > 180
+      ) {
+        return false;
+      }
+
+      /*
+       * KML 생성 과정에서 빈 좌표가 0,0(Null Island)로
+       * 들어오는 경우가 있어 실제 Route와 긴 직선으로 연결됩니다.
+       * 항공 Route 좌표로 볼 수 없는 0,0 근처 값은 제외합니다.
+       */
+      if (
+        Math.abs(lat) < 0.0001 &&
+        Math.abs(lng) < 0.0001
+      ) {
+        return false;
+      }
+
+      return true;
+    }
+
+
     function parseKmlCoordinates(
       coordinateText
     ) {
@@ -3306,10 +3337,8 @@
               );
 
             if (
-              !Number.isFinite(
-                lat
-              ) ||
-              !Number.isFinite(
+              !isUsableRouteCoordinate(
+                lat,
                 lng
               )
             ) {
