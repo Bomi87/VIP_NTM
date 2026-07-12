@@ -2773,6 +2773,15 @@
         0;
 
       /*
+       * 여러 LineString이 각각 별도 경도 세계(-180~180)로
+       * 파싱되어 날짜변경선에서 서로 떨어지는 현상을 막기 위한
+       * 공통 기준 경도입니다. 각 다음 선분의 시작점을 이전 선분
+       * 끝점과 가장 가까운 경도로 이동시킵니다.
+       */
+      let routeReferenceLng =
+        null;
+
+      /*
        * LineString 처리
        */
       const lineStrings =
@@ -2805,8 +2814,16 @@
            */
           latLngs =
             unwrapRouteLongitudes(
-              latLngs
+              latLngs,
+              routeReferenceLng
             );
+
+          if (latLngs.length > 0) {
+            routeReferenceLng =
+              latLngs[
+                latLngs.length - 1
+              ][1];
+          }
 
           if (
             latLngs.length < 2
@@ -2960,9 +2977,15 @@
             return;
           }
 
-          const latLngs =
+          let latLngs =
             parseKmlCoordinates(
               coordinatesNode.textContent
+            );
+
+          latLngs =
+            unwrapRouteLongitudes(
+              latLngs,
+              routeReferenceLng
             );
 
           if (
@@ -3180,7 +3203,8 @@
 
 
     function unwrapRouteLongitudes(
-      latLngs
+      latLngs,
+      referenceLng
     ) {
       if (
         !Array.isArray(
@@ -3191,15 +3215,51 @@
         return [];
       }
 
+      const firstLat =
+        Number(
+          latLngs[0][0]
+        );
+
+      let firstLng =
+        Number(
+          latLngs[0][1]
+        );
+
+      /*
+       * 선분이 여러 개일 때 첫 좌표도 이전 선분의 끝점과
+       * 가장 가까운 360도 세계로 맞춥니다.
+       * 예: -170도 → 이전 끝점이 +165도라면 +190도로 변환.
+       */
+      if (
+        Number.isFinite(
+          Number(
+            referenceLng
+          )
+        )
+      ) {
+        const reference =
+          Number(
+            referenceLng
+          );
+
+        while (
+          firstLng - reference > 180
+        ) {
+          firstLng -= 360;
+        }
+
+        while (
+          firstLng - reference < -180
+        ) {
+          firstLng += 360;
+        }
+      }
+
       const unwrapped =
         [
           [
-            Number(
-              latLngs[0][0]
-            ),
-            Number(
-              latLngs[0][1]
-            )
+            firstLat,
+            firstLng
           ]
         ];
 
@@ -3245,7 +3305,6 @@
 
       return unwrapped;
     }
-
 
     function parseKmlCoordinates(
       coordinateText
