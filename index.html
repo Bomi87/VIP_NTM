@@ -8,9 +8,8 @@
     content="width=device-width, initial-scale=1.0"
   >
 
-  <title>한국 금지공역 NOTAM 영향 분석</title>
+  <title>한국 금지공역 NOTAM 및 Flight Route</title>
 
-  <!-- Leaflet -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -27,12 +26,23 @@
       --line: #dfe4ea;
       --text: #17202a;
       --muted: #667085;
+
       --red: #d92d20;
       --red-soft: #fee4e2;
+
       --orange: #f79009;
       --orange-soft: #fef0c7;
-      --green: #039855;
+
       --blue: #1570ef;
+      --blue-soft: #dbeafe;
+      --blue-panel: #f5f9ff;
+
+      --green: #039855;
+      --green-soft: #d1fadf;
+
+      --yellow: #facc15;
+      --cyan: #06b6d4;
+
       --shadow:
         0 4px 18px rgba(16, 24, 40, 0.08);
     }
@@ -43,13 +53,16 @@
 
     html,
     body {
+      width: 100%;
+      height: 100%;
       margin: 0;
       padding: 0;
-      height: 100%;
+
       font-family:
         Arial,
         "Noto Sans KR",
         sans-serif;
+
       background: var(--bg);
       color: var(--text);
     }
@@ -59,27 +72,37 @@
     }
 
     button,
-    select,
-    input {
+    select {
       font: inherit;
     }
 
     .app {
       display: grid;
-      grid-template-rows: auto 1fr;
+      grid-template-rows: auto auto 1fr;
+
+      width: 100%;
       height: 100vh;
     }
 
+    /********************************************************
+     * 헤더
+     ********************************************************/
+
     .header {
-      background: #101828;
-      color: white;
-      padding: 12px 16px;
+      position: relative;
+      z-index: 1000;
+
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 16px;
+
+      padding: 11px 16px;
+
+      background: #101828;
+      color: #ffffff;
+
       box-shadow: var(--shadow);
-      z-index: 1000;
     }
 
     .header-title {
@@ -88,31 +111,38 @@
 
     .header-title h1 {
       margin: 0;
-      font-size: 20px;
+
+      font-size: 19px;
       line-height: 1.3;
     }
 
     .header-title p {
       margin: 4px 0 0;
+
       color: #d0d5dd;
-      font-size: 12px;
+      font-size: 11px;
+      line-height: 1.45;
     }
 
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 8px;
       flex-shrink: 0;
+      gap: 8px;
     }
 
     .refresh-button {
+      padding: 9px 13px;
+
       border: 1px solid #475467;
-      background: #344054;
-      color: white;
       border-radius: 8px;
-      padding: 9px 14px;
-      cursor: pointer;
+
+      background: #344054;
+      color: #ffffff;
+
+      font-size: 12px;
       font-weight: 700;
+      cursor: pointer;
     }
 
     .refresh-button:hover {
@@ -124,50 +154,170 @@
       cursor: wait;
     }
 
+    /********************************************************
+     * Route 툴바
+     ********************************************************/
+
+    .route-toolbar {
+      position: relative;
+      z-index: 950;
+
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+
+      padding: 8px 14px;
+
+      background: #ffffff;
+      border-bottom: 1px solid var(--line);
+
+      box-shadow:
+        0 2px 8px rgba(16, 24, 40, 0.05);
+    }
+
+    .route-toolbar-title {
+      margin-right: 4px;
+
+      color: #344054;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .route-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+
+      padding: 8px 12px;
+
+      border: 1px solid #d0d5dd;
+      border-radius: 8px;
+
+      background: #ffffff;
+      color: #344054;
+
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+
+      transition:
+        background 0.12s ease,
+        border-color 0.12s ease,
+        transform 0.12s ease;
+    }
+
+    .route-button:hover {
+      transform: translateY(-1px);
+      background: #f9fafb;
+    }
+
+    .route-button:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+
+    .route-button.active-hl8080 {
+      border-color: #ca8a04;
+      background: #fef9c3;
+      color: #854d0e;
+    }
+
+    .route-button.active-hl8372 {
+      border-color: #0891b2;
+      background: #cffafe;
+      color: #155e75;
+    }
+
+    .route-button.clear-route {
+      color: #475467;
+      background: #f9fafb;
+    }
+
+    .route-color {
+      width: 11px;
+      height: 11px;
+
+      border: 2px solid rgba(0, 0, 0, 0.3);
+      border-radius: 50%;
+    }
+
+    .route-color.hl8080 {
+      background: var(--yellow);
+    }
+
+    .route-color.hl8372 {
+      background: var(--cyan);
+    }
+
+    .route-status {
+      margin-left: auto;
+
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    /********************************************************
+     * 레이아웃
+     ********************************************************/
+
     .layout {
       min-height: 0;
+
       display: grid;
-      grid-template-columns: 440px 1fr;
+      grid-template-columns: 460px 1fr;
     }
 
     .sidebar {
       min-height: 0;
-      background: var(--bg);
-      border-right: 1px solid var(--line);
+
       display: flex;
       flex-direction: column;
+
       overflow: hidden;
+
+      background: var(--bg);
+      border-right: 1px solid var(--line);
     }
 
+    /********************************************************
+     * 통계
+     ********************************************************/
+
     .summary-section {
-      padding: 12px;
-      border-bottom: 1px solid var(--line);
+      padding: 11px;
+
       background: var(--panel);
+      border-bottom: 1px solid var(--line);
     }
 
     .summary-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 7px;
     }
 
     .summary-card {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 10px;
-      background: #fff;
       min-width: 0;
+      padding: 9px;
+
+      border: 1px solid var(--line);
+      border-radius: 9px;
+
+      background: #ffffff;
     }
 
     .summary-card .label {
       color: var(--muted);
-      font-size: 11px;
-      line-height: 1.2;
+      font-size: 10px;
+      line-height: 1.25;
     }
 
     .summary-card .value {
       margin-top: 5px;
-      font-size: 21px;
+
+      font-size: 20px;
       font-weight: 800;
       line-height: 1;
     }
@@ -180,17 +330,24 @@
       color: var(--orange);
     }
 
-    .summary-card.primary .value {
+    .summary-card.primary .value,
+    .summary-card.other .value {
       color: var(--blue);
     }
 
+    /********************************************************
+     * 필터
+     ********************************************************/
+
     .controls {
-      padding: 10px 12px;
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      border-bottom: 1px solid var(--line);
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 7px;
+
+      padding: 9px 11px;
+
       background: var(--panel);
+      border-bottom: 1px solid var(--line);
     }
 
     .control-group {
@@ -199,51 +356,72 @@
 
     .control-group label {
       display: block;
+
       margin-bottom: 4px;
-      font-size: 11px;
+
       color: var(--muted);
+      font-size: 10px;
       font-weight: 700;
     }
 
     .control-group select {
       width: 100%;
+      padding: 7px;
+
       border: 1px solid #d0d5dd;
-      border-radius: 8px;
-      padding: 8px;
-      background: white;
+      border-radius: 7px;
+
+      background: #ffffff;
       color: var(--text);
+
+      font-size: 11px;
     }
+
+    /********************************************************
+     * NOTAM 목록
+     ********************************************************/
 
     .notam-list {
       flex: 1;
       min-height: 0;
+
+      padding: 9px;
+
       overflow-y: auto;
-      padding: 10px;
     }
 
     .notam-card {
-      background: var(--panel);
+      margin-bottom: 9px;
+      padding: 11px;
+
       border: 1px solid var(--line);
       border-left: 5px solid var(--red);
-      border-radius: 10px;
-      padding: 12px;
-      margin-bottom: 10px;
+      border-radius: 9px;
+
+      background: var(--panel);
+
       box-shadow:
         0 2px 8px rgba(16, 24, 40, 0.05);
+
       cursor: pointer;
-      transition:
-        transform 0.12s ease,
-        box-shadow 0.12s ease;
     }
 
     .notam-card:hover {
-      transform: translateY(-1px);
       box-shadow: var(--shadow);
     }
 
     .notam-card.active {
       outline: 2px solid var(--blue);
       outline-offset: 1px;
+    }
+
+    .notam-card.other-notam {
+      border-left-color: var(--blue);
+      background: var(--blue-panel);
+    }
+
+    .notam-card.other-notam .notam-number {
+      color: var(--blue);
     }
 
     .notam-header {
@@ -254,19 +432,22 @@
     }
 
     .notam-number {
-      font-size: 16px;
-      font-weight: 800;
       color: var(--red);
+      font-size: 15px;
+      font-weight: 800;
     }
 
     .badge {
       display: inline-flex;
       align-items: center;
-      white-space: nowrap;
+
+      padding: 4px 7px;
+
       border-radius: 999px;
-      padding: 4px 8px;
-      font-size: 10px;
+
+      font-size: 9px;
       font-weight: 800;
+      white-space: nowrap;
     }
 
     .badge-red {
@@ -279,53 +460,75 @@
       background: var(--orange-soft);
     }
 
-    .badge-blue {
+    .badge-blue,
+    .badge-other {
       color: #175cd3;
-      background: #dbeafe;
+      background: var(--blue-soft);
     }
 
     .badge-green {
       color: #027a48;
-      background: #d1fadf;
+      background: var(--green-soft);
     }
 
     .notam-title {
       margin-top: 7px;
-      font-size: 13px;
+
+      font-size: 12px;
       font-weight: 700;
       line-height: 1.45;
+
+      white-space: pre-line;
     }
 
     .notam-meta {
-      margin-top: 8px;
       display: grid;
       gap: 4px;
+
+      margin-top: 7px;
+
       color: var(--muted);
-      font-size: 11px;
-      line-height: 1.45;
+      font-size: 10px;
+      line-height: 1.5;
+    }
+
+    .classification-impact {
+      color: var(--red);
+      font-weight: 800;
+    }
+
+    .classification-other {
+      color: var(--blue);
+      font-weight: 800;
     }
 
     .schedule-count {
-      margin-top: 9px;
-      padding-top: 9px;
-      border-top: 1px solid #eaecf0;
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      font-size: 12px;
+      justify-content: space-between;
+
+      margin-top: 8px;
+      padding-top: 8px;
+
+      border-top: 1px solid #eaecf0;
+
+      font-size: 11px;
       font-weight: 700;
     }
 
     .schedule-list {
-      margin-top: 8px;
       display: grid;
-      gap: 7px;
+      gap: 6px;
+
+      margin-top: 7px;
     }
 
     .schedule-item {
+      padding: 7px;
+
       border: 1px solid #eaecf0;
-      border-radius: 8px;
-      padding: 8px;
+      border-radius: 7px;
+
       background: #f9fafb;
     }
 
@@ -333,37 +536,54 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 6px;
-      font-size: 12px;
+      gap: 5px;
+
+      font-size: 11px;
       font-weight: 800;
     }
 
     .schedule-time {
       margin-top: 4px;
-      font-size: 10px;
-      line-height: 1.5;
+
       color: var(--muted);
+      font-size: 9px;
+      line-height: 1.55;
     }
 
     .matched-window {
       margin-top: 5px;
-      padding: 5px 7px;
+      padding: 5px 6px;
+
       border-radius: 6px;
+
       background: var(--orange-soft);
       color: #93370d;
-      font-size: 10px;
+
+      font-size: 9px;
       font-weight: 700;
+      line-height: 1.45;
     }
 
+    .other-notam .matched-window {
+      background: var(--blue-soft);
+      color: #175cd3;
+    }
+
+    /********************************************************
+     * 지도
+     ********************************************************/
+
     .map-wrap {
+      position: relative;
+
       min-width: 0;
       min-height: 0;
-      position: relative;
     }
 
     #map {
       width: 100%;
       height: 100%;
+
       background: #dbe4eb;
     }
 
@@ -372,13 +592,17 @@
       right: 12px;
       bottom: 24px;
       z-index: 800;
-      background: rgba(255, 255, 255, 0.96);
-      border: 1px solid var(--line);
-      border-radius: 10px;
+
       padding: 9px 11px;
+
+      border: 1px solid var(--line);
+      border-radius: 9px;
+
+      background: rgba(255, 255, 255, 0.96);
       box-shadow: var(--shadow);
-      font-size: 11px;
-      line-height: 1.6;
+
+      font-size: 10px;
+      line-height: 1.7;
     }
 
     .legend-row {
@@ -387,30 +611,57 @@
       gap: 7px;
     }
 
-    .legend-circle {
+    .legend-symbol {
       width: 12px;
       height: 12px;
-      border-radius: 50%;
+
       flex-shrink: 0;
     }
 
+    .legend-circle {
+      border-radius: 50%;
+    }
+
     .legend-red {
-      background: rgba(217, 45, 32, 0.48);
-      border: 2px solid #d92d20;
+      border: 2px solid var(--red);
+      background: rgba(217, 45, 32, 0.45);
     }
 
     .legend-orange {
-      background: rgba(247, 144, 9, 0.28);
-      border: 2px solid #f79009;
+      border: 2px solid var(--orange);
+      background: rgba(247, 144, 9, 0.26);
     }
+
+    .legend-blue {
+      border: 2px solid var(--blue);
+      background: rgba(21, 112, 239, 0.22);
+    }
+
+    .legend-line-yellow {
+      height: 4px;
+      background: var(--yellow);
+      border: 1px solid #854d0e;
+    }
+
+    .legend-line-cyan {
+      height: 4px;
+      background: var(--cyan);
+      border: 1px solid #155e75;
+    }
+
+    /********************************************************
+     * 로딩
+     ********************************************************/
 
     .loading-overlay {
       position: fixed;
       inset: 0;
       z-index: 5000;
+
       display: none;
       align-items: center;
       justify-content: center;
+
       background: rgba(16, 24, 40, 0.45);
     }
 
@@ -419,21 +670,27 @@
     }
 
     .loading-box {
-      background: white;
-      border-radius: 12px;
-      padding: 20px 26px;
-      box-shadow: var(--shadow);
-      text-align: center;
       min-width: 220px;
+      padding: 20px 26px;
+
+      border-radius: 12px;
+
+      background: #ffffff;
+      box-shadow: var(--shadow);
+
+      text-align: center;
     }
 
     .spinner {
       width: 34px;
       height: 34px;
+
       margin: 0 auto 12px;
+
       border: 4px solid #eaecf0;
       border-top-color: var(--blue);
       border-radius: 50%;
+
       animation: spin 0.85s linear infinite;
     }
 
@@ -444,9 +701,10 @@
     }
 
     .status-message {
-      padding: 30px 16px;
-      text-align: center;
+      padding: 28px 15px;
+
       color: var(--muted);
+      text-align: center;
       line-height: 1.7;
     }
 
@@ -454,36 +712,73 @@
       color: var(--red);
     }
 
+    /********************************************************
+     * Popup
+     ********************************************************/
+
     .leaflet-popup-content {
       min-width: 250px;
       margin: 12px;
     }
 
     .popup-title {
-      color: var(--red);
-      font-size: 15px;
-      font-weight: 800;
       margin-bottom: 7px;
+
+      font-size: 14px;
+      font-weight: 800;
     }
 
     .popup-row {
       margin: 4px 0;
-      font-size: 11px;
+
+      font-size: 10px;
       line-height: 1.5;
     }
 
     .popup-text {
+      max-height: 180px;
       margin-top: 8px;
-      border-top: 1px solid #eaecf0;
       padding-top: 7px;
-      font-size: 10px;
+
+      overflow-y: auto;
+
+      border-top: 1px solid #eaecf0;
+
+      font-size: 9px;
       line-height: 1.5;
       white-space: pre-wrap;
-      max-height: 180px;
-      overflow-y: auto;
     }
 
-    @media (max-width: 900px) {
+    .route-popup-title {
+      margin-bottom: 5px;
+
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    /********************************************************
+     * 모바일
+     ********************************************************/
+
+    @media (max-width: 1000px) {
+      .layout {
+        grid-template-columns: 420px 1fr;
+      }
+
+      .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .controls {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .control-group:last-child {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 800px) {
       body {
         overflow: auto;
       }
@@ -495,7 +790,7 @@
 
       .layout {
         grid-template-columns: 1fr;
-        grid-template-rows: auto 60vh;
+        grid-template-rows: auto 65vh;
       }
 
       .sidebar {
@@ -504,23 +799,20 @@
       }
 
       .notam-list {
-        max-height: 55vh;
+        max-height: 58vh;
       }
 
       .map-wrap {
-        min-height: 60vh;
+        min-height: 65vh;
       }
 
       .header {
         align-items: flex-start;
       }
 
-      .header-title h1 {
-        font-size: 17px;
-      }
-
-      .summary-grid {
-        grid-template-columns: repeat(3, 1fr);
+      .route-status {
+        width: 100%;
+        margin-left: 0;
       }
     }
 
@@ -529,20 +821,26 @@
         flex-direction: column;
       }
 
-      .header-actions {
+      .header-actions,
+      .refresh-button {
         width: 100%;
       }
 
-      .refresh-button {
-        width: 100%;
+      .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
       }
 
       .controls {
         grid-template-columns: 1fr;
       }
 
-      .summary-card .value {
-        font-size: 18px;
+      .control-group:last-child {
+        grid-column: auto;
+      }
+
+      .route-button {
+        flex: 1;
+        justify-content: center;
       }
     }
   </style>
@@ -552,12 +850,13 @@
   <div class="app">
 
     <header class="header">
+
       <div class="header-title">
-        <h1>한국 금지공역 NOTAM 영향 분석</h1>
+        <h1>한국 금지공역 NOTAM 및 Flight Route</h1>
 
         <p>
-          RK 관련 운항의 ETD −1시간부터 ETA +1시간까지
-          QRPCA 실제 활성시간과 비교
+          RK 관련 운항의 ETD −1시간부터 ETA +1시간까지 QRPCA 활성시간과 비교합니다.
+          3일 이상 NOTAM은 기타로 분류하여 영향 통계에서 제외합니다.
         </p>
       </div>
 
@@ -567,20 +866,64 @@
           class="refresh-button"
           type="button"
         >
-          최신 정보 새로고침
+          NOTAM 새로고침
         </button>
       </div>
+
     </header>
+
+    <section class="route-toolbar">
+
+      <span class="route-toolbar-title">
+        항공기 Route
+      </span>
+
+      <button
+        id="hl8080RouteButton"
+        class="route-button"
+        type="button"
+      >
+        <span class="route-color hl8080"></span>
+        HL8080 Route
+      </button>
+
+      <button
+        id="hl8372RouteButton"
+        class="route-button"
+        type="button"
+      >
+        <span class="route-color hl8372"></span>
+        HL8372 Route
+      </button>
+
+      <button
+        id="clearRouteButton"
+        class="route-button clear-route"
+        type="button"
+      >
+        전체 루트 삭제
+      </button>
+
+      <span
+        id="routeStatus"
+        class="route-status"
+      >
+        루트가 선택되지 않았습니다.
+      </span>
+
+    </section>
 
     <main class="layout">
 
       <aside class="sidebar">
 
         <section class="summary-section">
+
           <div class="summary-grid">
 
             <div class="summary-card danger">
               <div class="label">영향 NOTAM</div>
+
               <div
                 id="affectedNotamsValue"
                 class="value"
@@ -591,6 +934,7 @@
 
             <div class="summary-card warning">
               <div class="label">영향 운항</div>
+
               <div
                 id="affectedSchedulesValue"
                 class="value"
@@ -600,7 +944,8 @@
             </div>
 
             <div class="summary-card primary">
-              <div class="label">NOTAM 매칭</div>
+              <div class="label">영향 매칭</div>
+
               <div
                 id="affectedMatchesValue"
                 class="value"
@@ -609,7 +954,19 @@
               </div>
             </div>
 
+            <div class="summary-card other">
+              <div class="label">기타 NOTAM</div>
+
+              <div
+                id="otherNotamsValue"
+                class="value"
+              >
+                -
+              </div>
+            </div>
+
           </div>
+
         </section>
 
         <section class="controls">
@@ -620,17 +977,9 @@
             </label>
 
             <select id="aircraftFilter">
-              <option value="ALL">
-                전체
-              </option>
-
-              <option value="ACJ">
-                ACJ
-              </option>
-
-              <option value="G650">
-                G650
-              </option>
+              <option value="ALL">전체</option>
+              <option value="ACJ">ACJ</option>
+              <option value="G650">G650</option>
             </select>
           </div>
 
@@ -640,21 +989,22 @@
             </label>
 
             <select id="directionFilter">
-              <option value="ALL">
-                전체
-              </option>
+              <option value="ALL">전체</option>
+              <option value="KOREA_DEPARTURE">한국 출발</option>
+              <option value="KOREA_ARRIVAL">한국 도착</option>
+              <option value="DOMESTIC">국내 운항</option>
+            </select>
+          </div>
 
-              <option value="KOREA_DEPARTURE">
-                한국 출발
-              </option>
+          <div class="control-group">
+            <label for="classificationFilter">
+              NOTAM 분류
+            </label>
 
-              <option value="KOREA_ARRIVAL">
-                한국 도착
-              </option>
-
-              <option value="DOMESTIC">
-                국내 운항
-              </option>
+            <select id="classificationFilter">
+              <option value="ALL">전체</option>
+              <option value="IMPACT">영향 NOTAM</option>
+              <option value="OTHER">기타 · 3일 이상</option>
             </select>
           </div>
 
@@ -676,21 +1026,47 @@
         <div id="map"></div>
 
         <div class="map-legend">
+
           <div class="legend-row">
             <span
-              class="legend-circle legend-red"
+              class="legend-symbol legend-circle legend-red"
             ></span>
 
-            <span>금지공역 핵심 구역</span>
+            <span>실제 영향 금지공역</span>
           </div>
 
           <div class="legend-row">
             <span
-              class="legend-circle legend-orange"
+              class="legend-symbol legend-circle legend-orange"
             ></span>
 
-            <span>버퍼 구역</span>
+            <span>금지공역 버퍼</span>
           </div>
+
+          <div class="legend-row">
+            <span
+              class="legend-symbol legend-circle legend-blue"
+            ></span>
+
+            <span>기타 · 3일 이상</span>
+          </div>
+
+          <div class="legend-row">
+            <span
+              class="legend-symbol legend-line-yellow"
+            ></span>
+
+            <span>HL8080 Route</span>
+          </div>
+
+          <div class="legend-row">
+            <span
+              class="legend-symbol legend-line-cyan"
+            ></span>
+
+            <span>HL8372 Route</span>
+          </div>
+
         </div>
 
       </section>
@@ -703,9 +1079,15 @@
     class="loading-overlay"
   >
     <div class="loading-box">
+
       <div class="spinner"></div>
-      <strong>NOTAM 분석 중</strong>
+
+      <strong id="loadingTitle">
+        NOTAM 분석 중
+      </strong>
+
       <div
+        id="loadingDescription"
         style="
           margin-top: 6px;
           color: #667085;
@@ -714,6 +1096,7 @@
       >
         KOCA NOTAM과 운항 스케줄을 확인합니다.
       </div>
+
     </div>
   </div>
 
@@ -721,54 +1104,157 @@
   <script>
     "use strict";
 
+
     /********************************************************
-     * 반드시 현재 Apps Script 웹앱 URL로 변경
+     * 설정
      ********************************************************/
+
+    /*
+     * 네 Apps Script Web App URL로 반드시 교체
+     */
     const BACKEND_URL =
       "https://script.google.com/macros/s/AKfycbwkURZ2sVhsQoy3-51ON8z75ZyaL4J9Lu8WCDgDnyQdOp72sD016KeQqG1U_MbV3AP_/exec";
 
+    /*
+     * GitHub Pages Flight Map 루트 경로
+     */
+    const ROUTE_BASE_URL =
+      "https://bomi87.github.io/FLIGHT_MAP/live/";
+
+    const ROUTE_CONFIG = {
+      HL8080: {
+        aircraft:
+          "HL8080",
+
+        file:
+          "HL8080.kml",
+
+        color:
+          "#facc15",
+
+        outlineColor:
+          "#854d0e",
+
+        buttonId:
+          "hl8080RouteButton",
+
+        activeClass:
+          "active-hl8080"
+      },
+
+      HL8372: {
+        aircraft:
+          "HL8372",
+
+        file:
+          "HL8372.kml",
+
+        color:
+          "#06b6d4",
+
+        outlineColor:
+          "#155e75",
+
+        buttonId:
+          "hl8372RouteButton",
+
+        activeClass:
+          "active-hl8372"
+      }
+    };
+
+    /*
+     * 정확히 72시간 이상도 기타로 분류
+     */
+    const LONG_TERM_THRESHOLD_MS =
+      3 *
+      24 *
+      60 *
+      60 *
+      1000;
+
 
     /********************************************************
-     * 전역 상태
+     * 상태
      ********************************************************/
+
     const state = {
-      rawData: null,
-      filteredNotams: [],
-      mapLayers: new Map(),
-      selectedNotamNo: null
+      rawData:
+        null,
+
+      filteredNotams:
+        [],
+
+      notamMapLayers:
+        new Map(),
+
+      selectedNotamNo:
+        null,
+
+      routeLayers:
+        new Map(),
+
+      routeLoading:
+        new Set()
     };
 
 
     /********************************************************
-     * 지도 생성
+     * 지도
      ********************************************************/
-    const map = L.map(
-      "map",
-      {
-        zoomControl: true,
-        preferCanvas: true
-      }
-    ).setView(
-      [36.4, 127.8],
-      7
-    );
+
+    const map =
+      L.map(
+        "map",
+        {
+          zoomControl:
+            true,
+
+          preferCanvas:
+            false,
+
+          worldCopyJump:
+            false
+        }
+      ).setView(
+        [
+          36.4,
+          127.8
+        ],
+        7
+      );
 
     L.tileLayer(
       "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
       {
-        maxZoom: 18,
+        maxZoom:
+          18,
+
         attribution:
           "&copy; OpenStreetMap contributors"
       }
-    ).addTo(map);
+    ).addTo(
+      map
+    );
 
+    /*
+     * NOTAM과 항공기 Route를 서로 다른 그룹으로 관리
+     */
     const notamLayerGroup =
-      L.layerGroup().addTo(map);
+      L.layerGroup().addTo(
+        map
+      );
+
+    const routeLayerGroup =
+      L.layerGroup().addTo(
+        map
+      );
 
 
     /********************************************************
      * DOM
      ********************************************************/
+
     const notamListElement =
       document.getElementById(
         "notamList"
@@ -789,19 +1275,57 @@
         "directionFilter"
       );
 
+    const classificationFilter =
+      document.getElementById(
+        "classificationFilter"
+      );
+
     const loadingOverlay =
       document.getElementById(
         "loadingOverlay"
+      );
+
+    const loadingTitle =
+      document.getElementById(
+        "loadingTitle"
+      );
+
+    const loadingDescription =
+      document.getElementById(
+        "loadingDescription"
+      );
+
+    const routeStatus =
+      document.getElementById(
+        "routeStatus"
+      );
+
+    const hl8080RouteButton =
+      document.getElementById(
+        "hl8080RouteButton"
+      );
+
+    const hl8372RouteButton =
+      document.getElementById(
+        "hl8372RouteButton"
+      );
+
+    const clearRouteButton =
+      document.getElementById(
+        "clearRouteButton"
       );
 
 
     /********************************************************
      * 이벤트
      ********************************************************/
+
     refreshButton.addEventListener(
       "click",
       function () {
-        loadImpactData(true);
+        loadImpactData(
+          true
+        );
       }
     );
 
@@ -815,20 +1339,62 @@
       applyFilters
     );
 
+    classificationFilter.addEventListener(
+      "change",
+      applyFilters
+    );
+
+    hl8080RouteButton.addEventListener(
+      "click",
+      function () {
+        toggleRoute(
+          "HL8080"
+        );
+      }
+    );
+
+    hl8372RouteButton.addEventListener(
+      "click",
+      function () {
+        toggleRoute(
+          "HL8372"
+        );
+      }
+    );
+
+    clearRouteButton.addEventListener(
+      "click",
+      clearAllRoutes
+    );
+
 
     /********************************************************
      * 초기 실행
      ********************************************************/
-    loadImpactData(false);
+
+    initializeApp();
+
+
+    async function initializeApp() {
+      await loadImpactData(
+        false
+      );
+
+      await autoLoadRouteFromUrl();
+    }
 
 
     /********************************************************
-     * 백엔드 데이터 조회
+     * NOTAM 데이터 조회
      ********************************************************/
+
     async function loadImpactData(
       forceRefresh
     ) {
-      setLoading(true);
+      showLoading(
+        "NOTAM 분석 중",
+        "KOCA NOTAM과 운항 스케줄을 확인합니다."
+      );
 
       try {
         const url =
@@ -842,14 +1408,20 @@
           "&_=" +
           Date.now();
 
-        const response = await fetch(
-          url,
-          {
-            method: "GET",
-            cache: "no-store",
-            redirect: "follow"
-          }
-        );
+        const response =
+          await fetch(
+            url,
+            {
+              method:
+                "GET",
+
+              cache:
+                "no-store",
+
+              redirect:
+                "follow"
+            }
+          );
 
         if (!response.ok) {
           throw new Error(
@@ -861,9 +1433,13 @@
         const data =
           await response.json();
 
-        if (!data || data.ok !== true) {
+        if (
+          !data ||
+          data.ok !== true
+        ) {
           throw new Error(
-            data && data.message
+            data &&
+            data.message
               ? data.message
               : "분석 데이터를 가져오지 못했습니다."
           );
@@ -875,34 +1451,35 @@
         state.selectedNotamNo =
           null;
 
-        updateSummary(
-          data.stats || {}
-        );
-
         applyFilters();
 
       } catch (error) {
-        console.error(error);
+        console.error(
+          error
+        );
 
         notamListElement.innerHTML =
           '<div class="status-message error-message">' +
-          "<strong>데이터 조회 실패</strong><br>" +
-          escapeHtml(
-            error.message || String(error)
-          ) +
+            "<strong>데이터 조회 실패</strong><br>" +
+            escapeHtml(
+              error.message ||
+              String(error)
+            ) +
           "</div>";
 
-        clearMapLayers();
+        clearNotamMapLayers();
+        resetSummary();
 
       } finally {
-        setLoading(false);
+        hideLoading();
       }
     }
 
 
     /********************************************************
-     * 필터 적용
+     * 필터
      ********************************************************/
+
     function applyFilters() {
       if (
         !state.rawData ||
@@ -919,48 +1496,99 @@
       const selectedDirection =
         directionFilter.value;
 
+      const selectedClassification =
+        classificationFilter.value;
+
       state.filteredNotams =
         state.rawData.notams
-          .map(function (notam) {
-            const schedules =
-              Array.isArray(
-                notam.schedules
-              )
-                ? notam.schedules.filter(
-                    function (schedule) {
-                      const aircraftMatches =
-                        selectedAircraft ===
-                          "ALL" ||
-                        schedule.aircraft ===
-                          selectedAircraft;
+          .map(
+            function (notam) {
+              const schedules =
+                Array.isArray(
+                  notam.schedules
+                )
+                  ? notam.schedules.filter(
+                      function (schedule) {
+                        const aircraftMatches =
+                          selectedAircraft ===
+                            "ALL" ||
+                          schedule.aircraft ===
+                            selectedAircraft;
 
-                      const directionMatches =
-                        selectedDirection ===
-                          "ALL" ||
-                        schedule.direction ===
-                          selectedDirection;
+                        const directionMatches =
+                          selectedDirection ===
+                            "ALL" ||
+                          schedule.direction ===
+                            selectedDirection;
 
-                      return (
-                        aircraftMatches &&
-                        directionMatches
-                      );
-                    }
-                  )
-                : [];
+                        return (
+                          aircraftMatches &&
+                          directionMatches
+                        );
+                      }
+                    )
+                  : [];
 
-            return Object.assign(
-              {},
-              notam,
-              {
-                schedules:
-                  schedules
-              }
-            );
-          })
+              return Object.assign(
+                {},
+                notam,
+                {
+                  schedules:
+                    schedules,
+
+                  isOther:
+                    isOtherNotam(
+                      notam
+                    )
+                }
+              );
+            }
+          )
           .filter(
             function (notam) {
+              if (
+                notam.schedules.length === 0
+              ) {
+                return false;
+              }
+
+              if (
+                selectedClassification ===
+                "IMPACT"
+              ) {
+                return !notam.isOther;
+              }
+
+              if (
+                selectedClassification ===
+                "OTHER"
+              ) {
+                return notam.isOther;
+              }
+
+              return true;
+            }
+          )
+          .sort(
+            function (a, b) {
+              if (
+                a.isOther !==
+                b.isOther
+              ) {
+                return (
+                  a.isOther
+                    ? 1
+                    : -1
+                );
+              }
+
               return (
-                notam.schedules.length > 0
+                new Date(
+                  a.startUtc
+                ).getTime() -
+                new Date(
+                  b.startUtc
+                ).getTime()
               );
             }
           );
@@ -969,7 +1597,7 @@
         state.filteredNotams
       );
 
-      renderMap(
+      renderNotamMap(
         state.filteredNotams
       );
 
@@ -980,85 +1608,141 @@
 
 
     /********************************************************
-     * 기본 요약
+     * 3일 이상 분류
      ********************************************************/
-    function updateSummary(stats) {
-      document.getElementById(
-        "affectedNotamsValue"
-      ).textContent =
-        numberOrZero(
-          stats.affectedNotams
-        );
 
-      document.getElementById(
-        "affectedSchedulesValue"
-      ).textContent =
-        numberOrZero(
-          stats.uniqueAffectedSchedules
-        );
+    function isOtherNotam(
+      notam
+    ) {
+      const start =
+        new Date(
+          notam.startUtc
+        ).getTime();
 
-      document.getElementById(
-        "affectedMatchesValue"
-      ).textContent =
-        numberOrZero(
-          stats.affectedMatches
-        );
+      const end =
+        new Date(
+          notam.endUtc
+        ).getTime();
+
+      if (
+        !Number.isFinite(
+          start
+        ) ||
+        !Number.isFinite(
+          end
+        ) ||
+        end < start
+      ) {
+        return false;
+      }
+
+      return (
+        end - start >=
+        LONG_TERM_THRESHOLD_MS
+      );
     }
 
 
     /********************************************************
-     * 필터 적용 후 요약
+     * 통계
      ********************************************************/
+
     function updateFilteredSummary(
       notams
     ) {
-      const uniqueScheduleIds =
+      const impactNotams =
+        notams.filter(
+          function (notam) {
+            return !isOtherNotam(
+              notam
+            );
+          }
+        );
+
+      const otherNotams =
+        notams.filter(
+          function (notam) {
+            return isOtherNotam(
+              notam
+            );
+          }
+        );
+
+      const uniqueImpactScheduleIds =
         new Set();
 
-      let matchCount = 0;
+      let impactMatchCount =
+        0;
 
-      notams.forEach(
+      impactNotams.forEach(
         function (notam) {
           notam.schedules.forEach(
             function (schedule) {
-              uniqueScheduleIds.add(
+              uniqueImpactScheduleIds.add(
                 schedule.id
               );
 
-              matchCount++;
+              impactMatchCount++;
             }
           );
         }
       );
 
-      document.getElementById(
-        "affectedNotamsValue"
-      ).textContent =
-        notams.length;
+      setText(
+        "affectedNotamsValue",
+        impactNotams.length
+      );
 
-      document.getElementById(
-        "affectedSchedulesValue"
-      ).textContent =
-        uniqueScheduleIds.size;
+      setText(
+        "affectedSchedulesValue",
+        uniqueImpactScheduleIds.size
+      );
 
-      document.getElementById(
-        "affectedMatchesValue"
-      ).textContent =
-        matchCount;
+      setText(
+        "affectedMatchesValue",
+        impactMatchCount
+      );
+
+      setText(
+        "otherNotamsValue",
+        otherNotams.length
+      );
+    }
+
+
+    function resetSummary() {
+      [
+        "affectedNotamsValue",
+        "affectedSchedulesValue",
+        "affectedMatchesValue",
+        "otherNotamsValue"
+      ].forEach(
+        function (id) {
+          setText(
+            id,
+            "-"
+          );
+        }
+      );
     }
 
 
     /********************************************************
      * NOTAM 목록
      ********************************************************/
-    function renderNotamList(notams) {
+
+    function renderNotamList(
+      notams
+    ) {
       if (
-        !Array.isArray(notams) ||
+        !Array.isArray(
+          notams
+        ) ||
         notams.length === 0
       ) {
         notamListElement.innerHTML =
           '<div class="status-message">' +
-          "현재 필터 조건에 해당하는 영향 NOTAM이 없습니다." +
+            "현재 필터 조건에 해당하는 NOTAM이 없습니다." +
           "</div>";
 
         return;
@@ -1067,11 +1751,7 @@
       notamListElement.innerHTML =
         notams
           .map(
-            function (notam) {
-              return buildNotamCardHtml(
-                notam
-              );
-            }
+            buildNotamCardHtml
           )
           .join("");
 
@@ -1084,11 +1764,8 @@
             card.addEventListener(
               "click",
               function () {
-                const notamNo =
-                  card.dataset.notamNo;
-
                 selectNotam(
-                  notamNo
+                  card.dataset.notamNo
                 );
               }
             );
@@ -1097,47 +1774,68 @@
     }
 
 
-    function buildNotamCardHtml(notam) {
+    function buildNotamCardHtml(
+      notam
+    ) {
+      const other =
+        isOtherNotam(
+          notam
+        );
+
       const activeClass =
         state.selectedNotamNo ===
         notam.notamNo
           ? " active"
           : "";
 
-      const scheduleModeBadge =
-        buildScheduleModeBadge(
-          notam.scheduleParsingMode
-        );
+      const otherClass =
+        other
+          ? " other-notam"
+          : "";
+
+      const badgeHtml =
+        other
+          ? (
+              '<span class="badge badge-other">' +
+                "기타 · 영향 제외" +
+              "</span>"
+            )
+          : buildScheduleModeBadge(
+              notam.scheduleParsingMode
+            );
 
       const schedulesHtml =
         notam.schedules
           .map(
-            buildScheduleItemHtml
+            function (schedule) {
+              return buildScheduleItemHtml(
+                schedule,
+                other
+              );
+            }
           )
           .join("");
 
-      const geometryLabel =
-        getGeometryLabel(
-          notam
-        );
-
       return (
         '<article class="notam-card' +
-        activeClass +
+          activeClass +
+          otherClass +
         '" data-notam-no="' +
-        escapeAttribute(
-          notam.notamNo
-        ) +
+          escapeAttribute(
+            notam.notamNo
+          ) +
         '">' +
 
           '<div class="notam-header">' +
+
             '<div class="notam-number">' +
               escapeHtml(
                 notam.notamNo
               ) +
             "</div>" +
 
-            scheduleModeBadge +
+            badgeHtml +
+
           "</div>" +
 
           '<div class="notam-title">' +
@@ -1149,13 +1847,34 @@
           "</div>" +
 
           '<div class="notam-meta">' +
+
+            "<div><strong>분류:</strong> " +
+              (
+                other
+                  ? '<span class="classification-other">기타 · 영향 판정 제외</span>'
+                  : '<span class="classification-impact">실제 영향 NOTAM</span>'
+              ) +
+            "</div>" +
+
             "<div><strong>전체 유효기간:</strong> " +
               escapeHtml(
-                notam.startLabel
+                notam.startLabel ||
+                "-"
               ) +
               " ~ " +
               escapeHtml(
-                notam.endLabel
+                notam.endLabel ||
+                "-"
+              ) +
+            "</div>" +
+
+            "<div><strong>기간 길이:</strong> " +
+              escapeHtml(
+                formatDurationHours(
+                  getNotamDurationHours(
+                    notam
+                  )
+                )
               ) +
             "</div>" +
 
@@ -1173,27 +1892,51 @@
 
             "<div><strong>구역:</strong> " +
               escapeHtml(
-                geometryLabel
+                getGeometryLabel(
+                  notam
+                )
               ) +
             "</div>" +
 
             (
               notam.dScheduleText
-                ? "<div><strong>D) 활성시간:</strong> " +
-                    escapeHtml(
-                      notam.dScheduleText
-                    ) +
-                  "</div>"
-                : ""
+                ? (
+                    "<div><strong>D) 활성시간:</strong> " +
+                      escapeHtml(
+                        notam.dScheduleText
+                      ) +
+                    "</div>"
+                  )
+                : (
+                    "<div><strong>활성시간:</strong> " +
+                      "D) 없음 · B)-C) 전체 적용" +
+                    "</div>"
+                  )
             ) +
+
           "</div>" +
 
           '<div class="schedule-count">' +
-            "<span>영향 운항</span>" +
-            '<span class="badge badge-red">' +
+
+            "<span>" +
+              (
+                other
+                  ? "참고 운항"
+                  : "영향 운항"
+              ) +
+            "</span>" +
+
+            '<span class="badge ' +
+              (
+                other
+                  ? "badge-other"
+                  : "badge-red"
+              ) +
+            '">' +
               notam.schedules.length +
               "편" +
             "</span>" +
+
           "</div>" +
 
           '<div class="schedule-list">' +
@@ -1206,7 +1949,8 @@
 
 
     function buildScheduleItemHtml(
-      schedule
+      schedule,
+      other
     ) {
       const directionBadgeClass =
         schedule.direction ===
@@ -1221,6 +1965,7 @@
         '<div class="schedule-item">' +
 
           '<div class="schedule-route">' +
+
             "<span>" +
               escapeHtml(
                 schedule.aircraft
@@ -1238,20 +1983,24 @@
                 schedule.directionLabel
               ) +
             "</span>" +
+
           "</div>" +
 
           '<div class="schedule-time">' +
+
             "ETD " +
             escapeHtml(
               schedule.departureUtcLabel
             ) +
             "<br>" +
+
             "ETA " +
             escapeHtml(
               schedule.arrivalUtcLabel
             ) +
             "<br>" +
-            "비교 " +
+
+            "비교시간 " +
             escapeHtml(
               schedule.comparisonStartLabel
             ) +
@@ -1259,10 +2008,17 @@
             escapeHtml(
               schedule.comparisonEndLabel
             ) +
+
           "</div>" +
 
           '<div class="matched-window">' +
-            "겹친 NOTAM 활성시간: " +
+
+            (
+              other
+                ? "참고상 겹친 유효시간: "
+                : "겹친 NOTAM 활성시간: "
+            ) +
+
             escapeHtml(
               schedule.matchedNotamStartLabel
             ) +
@@ -1270,6 +2026,7 @@
             escapeHtml(
               schedule.matchedNotamEndLabel
             ) +
+
           "</div>" +
 
         "</div>"
@@ -1277,13 +2034,50 @@
     }
 
 
-    /********************************************************
-     * 지도 렌더링
-     ********************************************************/
-    function renderMap(notams) {
-      clearMapLayers();
+    function buildScheduleModeBadge(
+      mode
+    ) {
+      if (
+        mode ===
+        "D_SCHEDULE"
+      ) {
+        return (
+          '<span class="badge badge-orange">' +
+            "D) 실제 시간" +
+          "</span>"
+        );
+      }
 
-      const bounds = [];
+      if (
+        mode ===
+        "D_PARSE_FALLBACK_B_C"
+      ) {
+        return (
+          '<span class="badge badge-red">' +
+            "D) 파싱 확인" +
+          "</span>"
+        );
+      }
+
+      return (
+        '<span class="badge badge-blue">' +
+          "B)-C) 전체" +
+        "</span>"
+      );
+    }
+
+
+    /********************************************************
+     * NOTAM 지도
+     ********************************************************/
+
+    function renderNotamMap(
+      notams
+    ) {
+      clearNotamMapLayers();
+
+      const bounds =
+        [];
 
       notams.forEach(
         function (notam) {
@@ -1300,7 +2094,7 @@
             }
           );
 
-          state.mapLayers.set(
+          state.notamMapLayers.set(
             notam.notamNo,
             layers
           );
@@ -1312,20 +2106,16 @@
         }
       );
 
-      if (bounds.length > 0) {
-        map.fitBounds(
+      /*
+       * Route가 표시 중이면 NOTAM 필터 변경 시
+       * 지도를 강제로 NOTAM 위치로 이동하지 않음
+       */
+      if (
+        state.routeLayers.size === 0
+      ) {
+        fitBoundsSafely(
           bounds,
-          {
-            padding:
-              [30, 30],
-            maxZoom:
-              10
-          }
-        );
-      } else {
-        map.setView(
-          [36.4, 127.8],
-          7
+          10
         );
       }
     }
@@ -1334,16 +2124,24 @@
     function createNotamLayers(
       notam
     ) {
-      const layers = [];
+      const layers =
+        [];
 
-      const popupHtml =
-        buildPopupHtml(
+      const other =
+        isOtherNotam(
           notam
         );
 
-      /*
-       * 원형 구역
-       */
+      const color =
+        other
+          ? "#1570ef"
+          : "#d92d20";
+
+      const popupHtml =
+        buildNotamPopupHtml(
+          notam
+        );
+
       if (
         notam.center &&
         isFiniteNumber(
@@ -1359,10 +2157,6 @@
           notam.coreRadiusNm
         ) > 0
       ) {
-        /*
-         * 버퍼를 먼저 그려야
-         * 핵심 구역이 위에 표시됨
-         */
         if (
           isFiniteNumber(
             notam.bufferRadiusNm
@@ -1374,7 +2168,12 @@
             notam.coreRadiusNm
           )
         ) {
-          const bufferCircle =
+          const bufferColor =
+            other
+              ? "#1570ef"
+              : "#f79009";
+
+          const buffer =
             L.circle(
               [
                 Number(
@@ -1391,32 +2190,36 @@
                   ),
 
                 color:
-                  "#f79009",
+                  bufferColor,
 
                 weight:
                   2,
 
                 fillColor:
-                  "#f79009",
+                  bufferColor,
 
                 fillOpacity:
-                  0.18,
+                  other
+                    ? 0.06
+                    : 0.18,
 
                 dashArray:
                   "6 5"
               }
             );
 
-          bufferCircle.bindPopup(
+          bindNotamLayerEvents(
+            buffer,
+            notam,
             popupHtml
           );
 
           layers.push(
-            bufferCircle
+            buffer
           );
         }
 
-        const coreCircle =
+        const core =
           L.circle(
             [
               Number(
@@ -1433,47 +2236,44 @@
                 ),
 
               color:
-                "#d92d20",
+                color,
 
               weight:
                 3,
 
               fillColor:
-                "#d92d20",
+                color,
 
               fillOpacity:
-                0.32
+                other
+                  ? 0.16
+                  : 0.32,
+
+              dashArray:
+                other
+                  ? "7 5"
+                  : null
             }
           );
 
-        coreCircle.bindPopup(
+        bindNotamLayerEvents(
+          core,
+          notam,
           popupHtml
         );
 
-        coreCircle.on(
-          "click",
-          function () {
-            highlightCard(
-              notam.notamNo
-            );
-          }
-        );
-
         layers.push(
-          coreCircle
+          core
         );
       }
 
-      /*
-       * 다각형 구역
-       */
       if (
         Array.isArray(
           notam.polygon
         ) &&
         notam.polygon.length >= 3
       ) {
-        const polygonLatLngs =
+        const latLngs =
           notam.polygon
             .filter(
               function (point) {
@@ -1502,37 +2302,37 @@
             );
 
         if (
-          polygonLatLngs.length >= 3
+          latLngs.length >= 3
         ) {
           const polygon =
             L.polygon(
-              polygonLatLngs,
+              latLngs,
               {
                 color:
-                  "#d92d20",
+                  color,
 
                 weight:
                   3,
 
                 fillColor:
-                  "#d92d20",
+                  color,
 
                 fillOpacity:
-                  0.30
+                  other
+                    ? 0.16
+                    : 0.30,
+
+                dashArray:
+                  other
+                    ? "7 5"
+                    : null
               }
             );
 
-          polygon.bindPopup(
+          bindNotamLayerEvents(
+            polygon,
+            notam,
             popupHtml
-          );
-
-          polygon.on(
-            "click",
-            function () {
-              highlightCard(
-                notam.notamNo
-              );
-            }
           );
 
           layers.push(
@@ -1541,75 +2341,56 @@
         }
       }
 
-      /*
-       * 좌표만 있고 반경이 없는 경우
-       */
-      if (
-        layers.length === 0 &&
-        notam.center &&
-        isFiniteNumber(
-          notam.center.lat
-        ) &&
-        isFiniteNumber(
-          notam.center.lng
-        )
-      ) {
-        const marker =
-          L.circleMarker(
-            [
-              Number(
-                notam.center.lat
-              ),
-              Number(
-                notam.center.lng
-              )
-            ],
-            {
-              radius:
-                7,
-
-              color:
-                "#d92d20",
-
-              fillColor:
-                "#d92d20",
-
-              fillOpacity:
-                0.6,
-
-              weight:
-                2
-            }
-          );
-
-        marker.bindPopup(
-          popupHtml
-        );
-
-        layers.push(
-          marker
-        );
-      }
-
       return layers;
     }
 
 
-    function buildPopupHtml(
+    function bindNotamLayerEvents(
+      layer,
+      notam,
+      popupHtml
+    ) {
+      layer.bindPopup(
+        popupHtml
+      );
+
+      layer.on(
+        "click",
+        function () {
+          highlightCard(
+            notam.notamNo
+          );
+        }
+      );
+    }
+
+
+    function buildNotamPopupHtml(
       notam
     ) {
+      const other =
+        isOtherNotam(
+          notam
+        );
+
       return (
-        '<div class="popup-title">' +
+        '<div class="popup-title" style="color:' +
+          (
+            other
+              ? "#1570ef"
+              : "#d92d20"
+          ) +
+        ';">' +
           escapeHtml(
             notam.notamNo
           ) +
         "</div>" +
 
-        '<div class="popup-row"><strong>구역:</strong> ' +
-          escapeHtml(
-            getGeometryLabel(
-              notam
-            )
+        '<div class="popup-row"><strong>분류:</strong> ' +
+          (
+            other
+              ? "기타 · 영향 제외"
+              : "실제 영향 NOTAM"
           ) +
         "</div>" +
 
@@ -1635,21 +2416,15 @@
           ) +
         "</div>" +
 
-        '<div class="popup-row"><strong>영향 운항:</strong> ' +
-          numberOrZero(
-            notam.schedules &&
-            notam.schedules.length
-          ) +
-          "편" +
-        "</div>" +
-
         (
           notam.dScheduleText
-            ? '<div class="popup-row"><strong>D):</strong> ' +
-                escapeHtml(
-                  notam.dScheduleText
-                ) +
-              "</div>"
+            ? (
+                '<div class="popup-row"><strong>D):</strong> ' +
+                  escapeHtml(
+                    notam.dScheduleText
+                  ) +
+                "</div>"
+              )
             : ""
         ) +
 
@@ -1665,8 +2440,910 @@
 
 
     /********************************************************
+     * Route 버튼
+     ********************************************************/
+
+    async function toggleRoute(
+      aircraft
+    ) {
+      if (
+        state.routeLoading.has(
+          aircraft
+        )
+      ) {
+        return;
+      }
+
+      if (
+        state.routeLayers.has(
+          aircraft
+        )
+      ) {
+        removeRoute(
+          aircraft
+        );
+
+        return;
+      }
+
+      await loadRouteByAircraft(
+        aircraft,
+        true
+      );
+    }
+
+
+    async function loadRouteByAircraft(
+      aircraft,
+      zoomToRoute
+    ) {
+      const config =
+        ROUTE_CONFIG[
+          aircraft
+        ];
+
+      if (!config) {
+        throw new Error(
+          "지원되지 않는 항공기입니다: " +
+          aircraft
+        );
+      }
+
+      state.routeLoading.add(
+        aircraft
+      );
+
+      updateRouteButtonState();
+
+      routeStatus.textContent =
+        aircraft +
+        " Route 불러오는 중...";
+
+      try {
+        const url =
+          ROUTE_BASE_URL +
+          config.file +
+          "?v=" +
+          Date.now();
+
+        const response =
+          await fetch(
+            url,
+            {
+              method:
+                "GET",
+
+              cache:
+                "no-store"
+            }
+          );
+
+        if (!response.ok) {
+          throw new Error(
+            aircraft +
+            " KML 호출 실패: HTTP " +
+            response.status
+          );
+        }
+
+        const kmlText =
+          await response.text();
+
+        const routeResult =
+          parseAndDrawKmlRoute(
+            kmlText,
+            config
+          );
+
+        if (
+          routeResult.layers.length === 0
+        ) {
+          throw new Error(
+            aircraft +
+            " KML에서 표시 가능한 경로를 찾지 못했습니다."
+          );
+        }
+
+        routeResult.layers.forEach(
+          function (layer) {
+            layer.addTo(
+              routeLayerGroup
+            );
+          }
+        );
+
+        state.routeLayers.set(
+          aircraft,
+          routeResult
+        );
+
+        routeStatus.textContent =
+          aircraft +
+          " Route 표시 완료 · " +
+          routeResult.pointCount +
+          "개 좌표";
+
+        if (
+          zoomToRoute &&
+          routeResult.bounds &&
+          routeResult.bounds.isValid()
+        ) {
+          map.fitBounds(
+            routeResult.bounds,
+            {
+              padding:
+                [
+                  35,
+                  35
+                ],
+
+              maxZoom:
+                10
+            }
+          );
+        }
+
+      } catch (error) {
+        console.error(
+          error
+        );
+
+        routeStatus.textContent =
+          getErrorMessage(
+            error
+          );
+
+        alert(
+          getErrorMessage(
+            error
+          )
+        );
+
+      } finally {
+        state.routeLoading.delete(
+          aircraft
+        );
+
+        updateRouteButtonState();
+      }
+    }
+
+
+    function removeRoute(
+      aircraft
+    ) {
+      const routeResult =
+        state.routeLayers.get(
+          aircraft
+        );
+
+      if (!routeResult) {
+        return;
+      }
+
+      routeResult.layers.forEach(
+        function (layer) {
+          routeLayerGroup.removeLayer(
+            layer
+          );
+        }
+      );
+
+      state.routeLayers.delete(
+        aircraft
+      );
+
+      updateRouteButtonState();
+      updateRouteStatusText();
+    }
+
+
+    function clearAllRoutes() {
+      routeLayerGroup.clearLayers();
+      state.routeLayers.clear();
+
+      updateRouteButtonState();
+
+      routeStatus.textContent =
+        "모든 항공기 Route를 삭제했습니다.";
+    }
+
+
+    function updateRouteButtonState() {
+      Object.keys(
+        ROUTE_CONFIG
+      ).forEach(
+        function (aircraft) {
+          const config =
+            ROUTE_CONFIG[
+              aircraft
+            ];
+
+          const button =
+            document.getElementById(
+              config.buttonId
+            );
+
+          const loaded =
+            state.routeLayers.has(
+              aircraft
+            );
+
+          const loading =
+            state.routeLoading.has(
+              aircraft
+            );
+
+          button.disabled =
+            loading;
+
+          button.classList.toggle(
+            config.activeClass,
+            loaded
+          );
+
+          if (loading) {
+            button.lastChild.textContent =
+              " " +
+              aircraft +
+              " 로딩 중";
+
+          } else {
+            button.lastChild.textContent =
+              " " +
+              aircraft +
+              " Route";
+          }
+        }
+      );
+    }
+
+
+    function updateRouteStatusText() {
+      const activeRoutes =
+        Array.from(
+          state.routeLayers.keys()
+        );
+
+      if (
+        activeRoutes.length === 0
+      ) {
+        routeStatus.textContent =
+          "루트가 선택되지 않았습니다.";
+
+        return;
+      }
+
+      routeStatus.textContent =
+        activeRoutes.join(
+          ", "
+        ) +
+        " Route 표시 중";
+    }
+
+
+    /********************************************************
+     * KML 파싱 및 표시
+     ********************************************************/
+
+    function parseAndDrawKmlRoute(
+      kmlText,
+      config
+    ) {
+      const parser =
+        new DOMParser();
+
+      const xml =
+        parser.parseFromString(
+          kmlText,
+          "application/xml"
+        );
+
+      const parserError =
+        xml.querySelector(
+          "parsererror"
+        );
+
+      if (parserError) {
+        throw new Error(
+          config.aircraft +
+          " KML XML 파싱 실패"
+        );
+      }
+
+      const layers =
+        [];
+
+      const allBounds =
+        [];
+
+      let pointCount =
+        0;
+
+      /*
+       * LineString 처리
+       */
+      const lineStrings =
+        Array.from(
+          xml.getElementsByTagName(
+            "LineString"
+          )
+        );
+
+      lineStrings.forEach(
+        function (lineString) {
+          const coordinatesNode =
+            lineString.getElementsByTagName(
+              "coordinates"
+            )[0];
+
+          if (!coordinatesNode) {
+            return;
+          }
+
+          const latLngs =
+            parseKmlCoordinates(
+              coordinatesNode.textContent
+            );
+
+          if (
+            latLngs.length < 2
+          ) {
+            return;
+          }
+
+          pointCount +=
+            latLngs.length;
+
+          /*
+           * 검은 외곽선
+           */
+          const outline =
+            L.polyline(
+              latLngs,
+              {
+                color:
+                  config.outlineColor,
+
+                weight:
+                  7,
+
+                opacity:
+                  0.72,
+
+                lineJoin:
+                  "round",
+
+                lineCap:
+                  "round"
+              }
+            );
+
+          /*
+           * 실제 Route 색상
+           */
+          const routeLine =
+            L.polyline(
+              latLngs,
+              {
+                color:
+                  config.color,
+
+                weight:
+                  4,
+
+                opacity:
+                  1,
+
+                lineJoin:
+                  "round",
+
+                lineCap:
+                  "round"
+              }
+            );
+
+          const popupHtml =
+            '<div class="route-popup-title">' +
+              escapeHtml(
+                config.aircraft
+              ) +
+              " Route" +
+            "</div>" +
+
+            "<div>" +
+              latLngs.length +
+              "개 경로 좌표" +
+            "</div>";
+
+          outline.bindPopup(
+            popupHtml
+          );
+
+          routeLine.bindPopup(
+            popupHtml
+          );
+
+          layers.push(
+            outline,
+            routeLine
+          );
+
+          latLngs.forEach(
+            function (latLng) {
+              allBounds.push(
+                latLng
+              );
+            }
+          );
+
+          /*
+           * 출발점
+           */
+          const departureMarker =
+            createRoutePointMarker(
+              latLngs[0],
+              config,
+              "DEP",
+              true
+            );
+
+          /*
+           * 도착점
+           */
+          const arrivalMarker =
+            createRoutePointMarker(
+              latLngs[
+                latLngs.length - 1
+              ],
+              config,
+              "ARR",
+              false
+            );
+
+          layers.push(
+            departureMarker,
+            arrivalMarker
+          );
+        }
+      );
+
+      /*
+       * KML Point Placemark 처리
+       */
+      const placemarks =
+        Array.from(
+          xml.getElementsByTagName(
+            "Placemark"
+          )
+        );
+
+      placemarks.forEach(
+        function (placemark) {
+          const pointNode =
+            placemark.getElementsByTagName(
+              "Point"
+            )[0];
+
+          if (!pointNode) {
+            return;
+          }
+
+          const coordinatesNode =
+            pointNode.getElementsByTagName(
+              "coordinates"
+            )[0];
+
+          if (!coordinatesNode) {
+            return;
+          }
+
+          const latLngs =
+            parseKmlCoordinates(
+              coordinatesNode.textContent
+            );
+
+          if (
+            latLngs.length === 0
+          ) {
+            return;
+          }
+
+          const nameNode =
+            placemark.getElementsByTagName(
+              "name"
+            )[0];
+
+          const descriptionNode =
+            placemark.getElementsByTagName(
+              "description"
+            )[0];
+
+          const pointName =
+            nameNode
+              ? nameNode.textContent.trim()
+              : "Waypoint";
+
+          const description =
+            descriptionNode
+              ? descriptionNode.textContent.trim()
+              : "";
+
+          const marker =
+            L.circleMarker(
+              latLngs[0],
+              {
+                radius:
+                  5,
+
+                color:
+                  config.outlineColor,
+
+                weight:
+                  2,
+
+                fillColor:
+                  config.color,
+
+                fillOpacity:
+                  0.95
+              }
+            );
+
+          marker.bindPopup(
+            '<div class="route-popup-title">' +
+              escapeHtml(
+                pointName
+              ) +
+            "</div>" +
+
+            "<div>" +
+              escapeHtml(
+                config.aircraft
+              ) +
+            "</div>" +
+
+            (
+              description
+                ? (
+                    '<div style="margin-top:5px;font-size:10px;">' +
+                      escapeHtml(
+                        description
+                      ) +
+                    "</div>"
+                  )
+                : ""
+            )
+          );
+
+          layers.push(
+            marker
+          );
+
+          allBounds.push(
+            latLngs[0]
+          );
+        }
+      );
+
+      /*
+       * LineString 없이 gx:Track만 존재하는 KML 대응
+       */
+      const gxCoordinates =
+        Array.from(
+          xml.getElementsByTagNameNS(
+            "*",
+            "coord"
+          )
+        );
+
+      if (
+        lineStrings.length === 0 &&
+        gxCoordinates.length > 1
+      ) {
+        const latLngs =
+          gxCoordinates
+            .map(
+              function (node) {
+                const parts =
+                  String(
+                    node.textContent ||
+                    ""
+                  )
+                    .trim()
+                    .split(
+                      /\s+/
+                    );
+
+                const lng =
+                  Number(
+                    parts[0]
+                  );
+
+                const lat =
+                  Number(
+                    parts[1]
+                  );
+
+                if (
+                  !Number.isFinite(
+                    lat
+                  ) ||
+                  !Number.isFinite(
+                    lng
+                  )
+                ) {
+                  return null;
+                }
+
+                return [
+                  lat,
+                  lng
+                ];
+              }
+            )
+            .filter(Boolean);
+
+        if (
+          latLngs.length > 1
+        ) {
+          pointCount +=
+            latLngs.length;
+
+          const outline =
+            L.polyline(
+              latLngs,
+              {
+                color:
+                  config.outlineColor,
+
+                weight:
+                  7,
+
+                opacity:
+                  0.72
+              }
+            );
+
+          const routeLine =
+            L.polyline(
+              latLngs,
+              {
+                color:
+                  config.color,
+
+                weight:
+                  4,
+
+                opacity:
+                  1
+              }
+            );
+
+          layers.push(
+            outline,
+            routeLine
+          );
+
+          latLngs.forEach(
+            function (latLng) {
+              allBounds.push(
+                latLng
+              );
+            }
+          );
+        }
+      }
+
+      return {
+        layers:
+          layers,
+
+        bounds:
+          allBounds.length > 0
+            ? L.latLngBounds(
+                allBounds
+              )
+            : null,
+
+        pointCount:
+          pointCount
+      };
+    }
+
+
+    function parseKmlCoordinates(
+      coordinateText
+    ) {
+      return String(
+        coordinateText ||
+        ""
+      )
+        .trim()
+        .split(
+          /\s+/
+        )
+        .map(
+          function (coordinate) {
+            const parts =
+              coordinate
+                .split(",");
+
+            if (
+              parts.length < 2
+            ) {
+              return null;
+            }
+
+            const lng =
+              Number(
+                parts[0]
+              );
+
+            const lat =
+              Number(
+                parts[1]
+              );
+
+            if (
+              !Number.isFinite(
+                lat
+              ) ||
+              !Number.isFinite(
+                lng
+              )
+            ) {
+              return null;
+            }
+
+            return [
+              lat,
+              lng
+            ];
+          }
+        )
+        .filter(Boolean);
+    }
+
+
+    function createRoutePointMarker(
+      latLng,
+      config,
+      label,
+      departure
+    ) {
+      const marker =
+        L.circleMarker(
+          latLng,
+          {
+            radius:
+              departure
+                ? 8
+                : 7,
+
+            color:
+              config.outlineColor,
+
+            weight:
+              3,
+
+            fillColor:
+              departure
+                ? "#22c55e"
+                : "#ef4444",
+
+            fillOpacity:
+              1
+          }
+        );
+
+      marker.bindTooltip(
+        config.aircraft +
+        " " +
+        label,
+        {
+          permanent:
+            false,
+
+          direction:
+            "top"
+        }
+      );
+
+      marker.bindPopup(
+        '<div class="route-popup-title">' +
+          escapeHtml(
+            config.aircraft
+          ) +
+          " " +
+          label +
+        "</div>" +
+
+        "<div>" +
+          (
+            departure
+              ? "출발 지점"
+              : "도착 지점"
+          ) +
+        "</div>"
+      );
+
+      return marker;
+    }
+
+
+    /********************************************************
+     * URL 자동 Route 로딩
+     *
+     * 지원:
+     * ?route=HL8080
+     * ?route=HL8372
+     * ?file=live/HL8080.kml
+     * ?file=live/HL8372.kml
+     ********************************************************/
+
+    async function autoLoadRouteFromUrl() {
+      const params =
+        new URLSearchParams(
+          window.location.search
+        );
+
+      let aircraft =
+        String(
+          params.get(
+            "route"
+          ) ||
+          ""
+        )
+          .trim()
+          .toUpperCase();
+
+      if (!aircraft) {
+        const file =
+          String(
+            params.get(
+              "file"
+            ) ||
+            ""
+          )
+            .trim()
+            .toUpperCase();
+
+        if (
+          file.includes(
+            "HL8080.KML"
+          )
+        ) {
+          aircraft =
+            "HL8080";
+
+        } else if (
+          file.includes(
+            "HL8372.KML"
+          )
+        ) {
+          aircraft =
+            "HL8372";
+        }
+      }
+
+      if (
+        ROUTE_CONFIG[
+          aircraft
+        ]
+      ) {
+        await loadRouteByAircraft(
+          aircraft,
+          true
+        );
+      }
+    }
+
+
+    /********************************************************
      * NOTAM 선택
      ********************************************************/
+
     function selectNotam(
       notamNo
     ) {
@@ -1678,7 +3355,7 @@
       );
 
       const layers =
-        state.mapLayers.get(
+        state.notamMapLayers.get(
           notamNo
         );
 
@@ -1689,26 +3366,18 @@
         return;
       }
 
-      const layerBounds = [];
+      const bounds =
+        [];
 
       collectLayerBounds(
         layers,
-        layerBounds
+        bounds
       );
 
-      if (
-        layerBounds.length > 0
-      ) {
-        map.fitBounds(
-          layerBounds,
-          {
-            padding:
-              [45, 45],
-            maxZoom:
-              12
-          }
-        );
-      }
+      fitBoundsSafely(
+        bounds,
+        12
+      );
 
       const popupLayer =
         layers[
@@ -1737,16 +3406,16 @@
         )
         .forEach(
           function (card) {
-            const matches =
+            const selected =
               card.dataset.notamNo ===
               notamNo;
 
             card.classList.toggle(
               "active",
-              matches
+              selected
             );
 
-            if (matches) {
+            if (selected) {
               card.scrollIntoView({
                 behavior:
                   "smooth",
@@ -1761,11 +3430,12 @@
 
 
     /********************************************************
-     * 지도 보조함수
+     * 지도 보조
      ********************************************************/
-    function clearMapLayers() {
+
+    function clearNotamMapLayers() {
       notamLayerGroup.clearLayers();
-      state.mapLayers.clear();
+      state.notamMapLayers.clear();
     }
 
 
@@ -1810,6 +3480,46 @@
     }
 
 
+    function fitBoundsSafely(
+      bounds,
+      maxZoom
+    ) {
+      if (
+        !Array.isArray(
+          bounds
+        ) ||
+        bounds.length === 0
+      ) {
+        return;
+      }
+
+      const leafletBounds =
+        L.latLngBounds(
+          bounds
+        );
+
+      if (
+        !leafletBounds.isValid()
+      ) {
+        return;
+      }
+
+      map.fitBounds(
+        leafletBounds,
+        {
+          padding:
+            [
+              35,
+              35
+            ],
+
+          maxZoom:
+            maxZoom
+        }
+      );
+    }
+
+
     function nmToMeters(
       nauticalMiles
     ) {
@@ -1823,40 +3533,8 @@
 
 
     /********************************************************
-     * 표시 보조함수
+     * 표시 함수
      ********************************************************/
-    function buildScheduleModeBadge(
-      mode
-    ) {
-      if (
-        mode ===
-        "D_SCHEDULE"
-      ) {
-        return (
-          '<span class="badge badge-orange">' +
-          "D) 실제 시간" +
-          "</span>"
-        );
-      }
-
-      if (
-        mode ===
-        "D_PARSE_FALLBACK_B_C"
-      ) {
-        return (
-          '<span class="badge badge-red">' +
-          "D) 파싱 확인 필요" +
-          "</span>"
-        );
-      }
-
-      return (
-        '<span class="badge badge-blue">' +
-        "B)-C) 전체" +
-        "</span>"
-      );
-    }
-
 
     function getGeometryLabel(
       notam
@@ -1866,7 +3544,7 @@
         "POLYGON"
       ) {
         return (
-          "다각형 " +
+          "다각형 · " +
           (
             Array.isArray(
               notam.polygon
@@ -1910,37 +3588,152 @@
     }
 
 
-    function setLoading(
-      loading
+    function getNotamDurationHours(
+      notam
     ) {
-      loadingOverlay.classList.toggle(
-        "visible",
-        loading
+      const start =
+        new Date(
+          notam.startUtc
+        ).getTime();
+
+      const end =
+        new Date(
+          notam.endUtc
+        ).getTime();
+
+      if (
+        !Number.isFinite(
+          start
+        ) ||
+        !Number.isFinite(
+          end
+        ) ||
+        end < start
+      ) {
+        return 0;
+      }
+
+      return (
+        end - start
+      ) /
+      (
+        60 *
+        60 *
+        1000
       );
-
-      refreshButton.disabled =
-        loading;
-
-      refreshButton.textContent =
-        loading
-          ? "조회 중..."
-          : "최신 정보 새로고침";
     }
 
 
-    function numberOrZero(
-      value
+    function formatDurationHours(
+      hours
     ) {
-      const number =
-        Number(
-          value
+      if (
+        !Number.isFinite(
+          Number(
+            hours
+          )
+        )
+      ) {
+        return "-";
+      }
+
+      const totalMinutes =
+        Math.round(
+          Number(
+            hours
+          ) *
+          60
         );
 
-      return Number.isFinite(
-        number
-      )
-        ? number
-        : 0;
+      const days =
+        Math.floor(
+          totalMinutes /
+          (
+            24 *
+            60
+          )
+        );
+
+      const remainingMinutes =
+        totalMinutes -
+        days *
+        24 *
+        60;
+
+      const remainingHours =
+        Math.floor(
+          remainingMinutes /
+          60
+        );
+
+      const minutes =
+        remainingMinutes %
+        60;
+
+      if (
+        days > 0
+      ) {
+        return (
+          days +
+          "일 " +
+          remainingHours +
+          "시간 " +
+          minutes +
+          "분"
+        );
+      }
+
+      return (
+        remainingHours +
+        "시간 " +
+        minutes +
+        "분"
+      );
+    }
+
+
+    function showLoading(
+      title,
+      description
+    ) {
+      loadingTitle.textContent =
+        title;
+
+      loadingDescription.textContent =
+        description;
+
+      loadingOverlay.classList.add(
+        "visible"
+      );
+
+      refreshButton.disabled =
+        true;
+    }
+
+
+    function hideLoading() {
+      loadingOverlay.classList.remove(
+        "visible"
+      );
+
+      refreshButton.disabled =
+        false;
+    }
+
+
+    function setText(
+      id,
+      value
+    ) {
+      const element =
+        document.getElementById(
+          id
+        );
+
+      if (element) {
+        element.textContent =
+          value;
+      }
     }
 
 
@@ -1951,6 +3744,20 @@
         Number(
           value
         )
+      );
+    }
+
+
+    function getErrorMessage(
+      error
+    ) {
+      return (
+        error &&
+        error.message
+          ? error.message
+          : String(
+              error
+            )
       );
     }
 
