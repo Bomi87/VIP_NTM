@@ -1,0 +1,1998 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>한국 금지공역 NOTAM 영향 분석</title>
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  ></script>
+
+  <style>
+    :root {
+      --bg: #f3f5f8;
+      --panel: #ffffff;
+      --line: #dfe4ea;
+      --text: #17202a;
+      --muted: #667085;
+      --red: #d92d20;
+      --red-soft: #fee4e2;
+      --orange: #f79009;
+      --orange-soft: #fef0c7;
+      --green: #039855;
+      --blue: #1570ef;
+      --shadow:
+        0 4px 18px rgba(16, 24, 40, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family:
+        Arial,
+        "Noto Sans KR",
+        sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    body {
+      overflow: hidden;
+    }
+
+    button,
+    select,
+    input {
+      font: inherit;
+    }
+
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100vh;
+    }
+
+    .header {
+      background: #101828;
+      color: white;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: var(--shadow);
+      z-index: 1000;
+    }
+
+    .header-title {
+      min-width: 0;
+    }
+
+    .header-title h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.3;
+    }
+
+    .header-title p {
+      margin: 4px 0 0;
+      color: #d0d5dd;
+      font-size: 12px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .refresh-button {
+      border: 1px solid #475467;
+      background: #344054;
+      color: white;
+      border-radius: 8px;
+      padding: 9px 14px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .refresh-button:hover {
+      background: #475467;
+    }
+
+    .refresh-button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    .layout {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 440px 1fr;
+    }
+
+    .sidebar {
+      min-height: 0;
+      background: var(--bg);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .summary-section {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .summary-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fff;
+      min-width: 0;
+    }
+
+    .summary-card .label {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.2;
+    }
+
+    .summary-card .value {
+      margin-top: 5px;
+      font-size: 21px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .summary-card.danger .value {
+      color: var(--red);
+    }
+
+    .summary-card.warning .value {
+      color: var(--orange);
+    }
+
+    .summary-card.primary .value {
+      color: var(--blue);
+    }
+
+    .controls {
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .control-group {
+      min-width: 0;
+    }
+
+    .control-group label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .control-group select {
+      width: 100%;
+      border: 1px solid #d0d5dd;
+      border-radius: 8px;
+      padding: 8px;
+      background: white;
+      color: var(--text);
+    }
+
+    .notam-list {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 10px;
+    }
+
+    .notam-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--red);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 10px;
+      box-shadow:
+        0 2px 8px rgba(16, 24, 40, 0.05);
+      cursor: pointer;
+      transition:
+        transform 0.12s ease,
+        box-shadow 0.12s ease;
+    }
+
+    .notam-card:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow);
+    }
+
+    .notam-card.active {
+      outline: 2px solid var(--blue);
+      outline-offset: 1px;
+    }
+
+    .notam-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .notam-number {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--red);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .badge-red {
+      color: #b42318;
+      background: var(--red-soft);
+    }
+
+    .badge-orange {
+      color: #b54708;
+      background: var(--orange-soft);
+    }
+
+    .badge-blue {
+      color: #175cd3;
+      background: #dbeafe;
+    }
+
+    .badge-green {
+      color: #027a48;
+      background: #d1fadf;
+    }
+
+    .notam-title {
+      margin-top: 7px;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .notam-meta {
+      margin-top: 8px;
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .schedule-count {
+      margin-top: 9px;
+      padding-top: 9px;
+      border-top: 1px solid #eaecf0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .schedule-list {
+      margin-top: 8px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .schedule-item {
+      border: 1px solid #eaecf0;
+      border-radius: 8px;
+      padding: 8px;
+      background: #f9fafb;
+    }
+
+    .schedule-route {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .schedule-time {
+      margin-top: 4px;
+      font-size: 10px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .matched-window {
+      margin-top: 5px;
+      padding: 5px 7px;
+      border-radius: 6px;
+      background: var(--orange-soft);
+      color: #93370d;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .map-wrap {
+      min-width: 0;
+      min-height: 0;
+      position: relative;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      background: #dbe4eb;
+    }
+
+    .map-legend {
+      position: absolute;
+      right: 12px;
+      bottom: 24px;
+      z-index: 800;
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 11px;
+      box-shadow: var(--shadow);
+      font-size: 11px;
+      line-height: 1.6;
+    }
+
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .legend-circle {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .legend-red {
+      background: rgba(217, 45, 32, 0.48);
+      border: 2px solid #d92d20;
+    }
+
+    .legend-orange {
+      background: rgba(247, 144, 9, 0.28);
+      border: 2px solid #f79009;
+    }
+
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(16, 24, 40, 0.45);
+    }
+
+    .loading-overlay.visible {
+      display: flex;
+    }
+
+    .loading-box {
+      background: white;
+      border-radius: 12px;
+      padding: 20px 26px;
+      box-shadow: var(--shadow);
+      text-align: center;
+      min-width: 220px;
+    }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      margin: 0 auto 12px;
+      border: 4px solid #eaecf0;
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.85s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .status-message {
+      padding: 30px 16px;
+      text-align: center;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .error-message {
+      color: var(--red);
+    }
+
+    .leaflet-popup-content {
+      min-width: 250px;
+      margin: 12px;
+    }
+
+    .popup-title {
+      color: var(--red);
+      font-size: 15px;
+      font-weight: 800;
+      margin-bottom: 7px;
+    }
+
+    .popup-row {
+      margin: 4px 0;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .popup-text {
+      margin-top: 8px;
+      border-top: 1px solid #eaecf0;
+      padding-top: 7px;
+      font-size: 10px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        overflow: auto;
+      }
+
+      .app {
+        height: auto;
+        min-height: 100vh;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 60vh;
+      }
+
+      .sidebar {
+        max-height: none;
+        overflow: visible;
+      }
+
+      .notam-list {
+        max-height: 55vh;
+      }
+
+      .map-wrap {
+        min-height: 60vh;
+      }
+
+      .header {
+        align-items: flex-start;
+      }
+
+      .header-title h1 {
+        font-size: 17px;
+      }
+
+      .summary-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (max-width: 520px) {
+      .header {
+        flex-direction: column;
+      }
+
+      .header-actions {
+        width: 100%;
+      }
+
+      .refresh-button {
+        width: 100%;
+      }
+
+      .controls {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-card .value {
+        font-size: 18px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <header class="header">
+      <div class="header-title">
+        <h1>한국 금지공역 NOTAM 영향 분석</h1>
+
+        <p>
+          RK 관련 운항의 ETD −1시간부터 ETA +1시간까지
+          QRPCA 실제 활성시간과 비교
+        </p>
+      </div>
+
+      <div class="header-actions">
+        <button
+          id="refreshButton"
+          class="refresh-button"
+          type="button"
+        >
+          최신 정보 새로고침
+        </button>
+      </div>
+    </header>
+
+    <main class="layout">
+
+      <aside class="sidebar">
+
+        <section class="summary-section">
+          <div class="summary-grid">
+
+            <div class="summary-card danger">
+              <div class="label">영향 NOTAM</div>
+              <div
+                id="affectedNotamsValue"
+                class="value"
+              >
+                -
+              </div>
+            </div>
+
+            <div class="summary-card warning">
+              <div class="label">영향 운항</div>
+              <div
+                id="affectedSchedulesValue"
+                class="value"
+              >
+                -
+              </div>
+            </div>
+
+            <div class="summary-card primary">
+              <div class="label">NOTAM 매칭</div>
+              <div
+                id="affectedMatchesValue"
+                class="value"
+              >
+                -
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <section class="controls">
+
+          <div class="control-group">
+            <label for="aircraftFilter">
+              항공기
+            </label>
+
+            <select id="aircraftFilter">
+              <option value="ALL">
+                전체
+              </option>
+
+              <option value="ACJ">
+                ACJ
+              </option>
+
+              <option value="G650">
+                G650
+              </option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <label for="directionFilter">
+              운항 구분
+            </label>
+
+            <select id="directionFilter">
+              <option value="ALL">
+                전체
+              </option>
+
+              <option value="KOREA_DEPARTURE">
+                한국 출발
+              </option>
+
+              <option value="KOREA_ARRIVAL">
+                한국 도착
+              </option>
+
+              <option value="DOMESTIC">
+                국내 운항
+              </option>
+            </select>
+          </div>
+
+        </section>
+
+        <section
+          id="notamList"
+          class="notam-list"
+        >
+          <div class="status-message">
+            데이터를 불러오는 중입니다.
+          </div>
+        </section>
+
+      </aside>
+
+      <section class="map-wrap">
+
+        <div id="map"></div>
+
+        <div class="map-legend">
+          <div class="legend-row">
+            <span
+              class="legend-circle legend-red"
+            ></span>
+
+            <span>금지공역 핵심 구역</span>
+          </div>
+
+          <div class="legend-row">
+            <span
+              class="legend-circle legend-orange"
+            ></span>
+
+            <span>버퍼 구역</span>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+  </div>
+
+  <div
+    id="loadingOverlay"
+    class="loading-overlay"
+  >
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <strong>NOTAM 분석 중</strong>
+      <div
+        style="
+          margin-top: 6px;
+          color: #667085;
+          font-size: 12px;
+        "
+      >
+        KOCA NOTAM과 운항 스케줄을 확인합니다.
+      </div>
+    </div>
+  </div>
+
+
+  <script>
+    "use strict";
+
+    /********************************************************
+     * 반드시 현재 Apps Script 웹앱 URL로 변경
+     ********************************************************/
+    const BACKEND_URL =
+      "https://script.google.com/macros/s/여기에_웹앱_ID/exec";
+
+
+    /********************************************************
+     * 전역 상태
+     ********************************************************/
+    const state = {
+      rawData: null,
+      filteredNotams: [],
+      mapLayers: new Map(),
+      selectedNotamNo: null
+    };
+
+
+    /********************************************************
+     * 지도 생성
+     ********************************************************/
+    const map = L.map(
+      "map",
+      {
+        zoomControl: true,
+        preferCanvas: true
+      }
+    ).setView(
+      [36.4, 127.8],
+      7
+    );
+
+    L.tileLayer(
+      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      {
+        maxZoom: 18,
+        attribution:
+          "&copy; OpenStreetMap contributors"
+      }
+    ).addTo(map);
+
+    const notamLayerGroup =
+      L.layerGroup().addTo(map);
+
+
+    /********************************************************
+     * DOM
+     ********************************************************/
+    const notamListElement =
+      document.getElementById(
+        "notamList"
+      );
+
+    const refreshButton =
+      document.getElementById(
+        "refreshButton"
+      );
+
+    const aircraftFilter =
+      document.getElementById(
+        "aircraftFilter"
+      );
+
+    const directionFilter =
+      document.getElementById(
+        "directionFilter"
+      );
+
+    const loadingOverlay =
+      document.getElementById(
+        "loadingOverlay"
+      );
+
+
+    /********************************************************
+     * 이벤트
+     ********************************************************/
+    refreshButton.addEventListener(
+      "click",
+      function () {
+        loadImpactData(true);
+      }
+    );
+
+    aircraftFilter.addEventListener(
+      "change",
+      applyFilters
+    );
+
+    directionFilter.addEventListener(
+      "change",
+      applyFilters
+    );
+
+
+    /********************************************************
+     * 초기 실행
+     ********************************************************/
+    loadImpactData(false);
+
+
+    /********************************************************
+     * 백엔드 데이터 조회
+     ********************************************************/
+    async function loadImpactData(
+      forceRefresh
+    ) {
+      setLoading(true);
+
+      try {
+        const url =
+          BACKEND_URL +
+          "?mode=prohibitedImpact" +
+          (
+            forceRefresh
+              ? "&force=true"
+              : ""
+          ) +
+          "&_=" +
+          Date.now();
+
+        const response = await fetch(
+          url,
+          {
+            method: "GET",
+            cache: "no-store",
+            redirect: "follow"
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            "백엔드 응답 오류: HTTP " +
+            response.status
+          );
+        }
+
+        const data =
+          await response.json();
+
+        if (!data || data.ok !== true) {
+          throw new Error(
+            data && data.message
+              ? data.message
+              : "분석 데이터를 가져오지 못했습니다."
+          );
+        }
+
+        state.rawData =
+          data;
+
+        state.selectedNotamNo =
+          null;
+
+        updateSummary(
+          data.stats || {}
+        );
+
+        applyFilters();
+
+      } catch (error) {
+        console.error(error);
+
+        notamListElement.innerHTML =
+          '<div class="status-message error-message">' +
+          "<strong>데이터 조회 실패</strong><br>" +
+          escapeHtml(
+            error.message || String(error)
+          ) +
+          "</div>";
+
+        clearMapLayers();
+
+      } finally {
+        setLoading(false);
+      }
+    }
+
+
+    /********************************************************
+     * 필터 적용
+     ********************************************************/
+    function applyFilters() {
+      if (
+        !state.rawData ||
+        !Array.isArray(
+          state.rawData.notams
+        )
+      ) {
+        return;
+      }
+
+      const selectedAircraft =
+        aircraftFilter.value;
+
+      const selectedDirection =
+        directionFilter.value;
+
+      state.filteredNotams =
+        state.rawData.notams
+          .map(function (notam) {
+            const schedules =
+              Array.isArray(
+                notam.schedules
+              )
+                ? notam.schedules.filter(
+                    function (schedule) {
+                      const aircraftMatches =
+                        selectedAircraft ===
+                          "ALL" ||
+                        schedule.aircraft ===
+                          selectedAircraft;
+
+                      const directionMatches =
+                        selectedDirection ===
+                          "ALL" ||
+                        schedule.direction ===
+                          selectedDirection;
+
+                      return (
+                        aircraftMatches &&
+                        directionMatches
+                      );
+                    }
+                  )
+                : [];
+
+            return Object.assign(
+              {},
+              notam,
+              {
+                schedules:
+                  schedules
+              }
+            );
+          })
+          .filter(
+            function (notam) {
+              return (
+                notam.schedules.length > 0
+              );
+            }
+          );
+
+      renderNotamList(
+        state.filteredNotams
+      );
+
+      renderMap(
+        state.filteredNotams
+      );
+
+      updateFilteredSummary(
+        state.filteredNotams
+      );
+    }
+
+
+    /********************************************************
+     * 기본 요약
+     ********************************************************/
+    function updateSummary(stats) {
+      document.getElementById(
+        "affectedNotamsValue"
+      ).textContent =
+        numberOrZero(
+          stats.affectedNotams
+        );
+
+      document.getElementById(
+        "affectedSchedulesValue"
+      ).textContent =
+        numberOrZero(
+          stats.uniqueAffectedSchedules
+        );
+
+      document.getElementById(
+        "affectedMatchesValue"
+      ).textContent =
+        numberOrZero(
+          stats.affectedMatches
+        );
+    }
+
+
+    /********************************************************
+     * 필터 적용 후 요약
+     ********************************************************/
+    function updateFilteredSummary(
+      notams
+    ) {
+      const uniqueScheduleIds =
+        new Set();
+
+      let matchCount = 0;
+
+      notams.forEach(
+        function (notam) {
+          notam.schedules.forEach(
+            function (schedule) {
+              uniqueScheduleIds.add(
+                schedule.id
+              );
+
+              matchCount++;
+            }
+          );
+        }
+      );
+
+      document.getElementById(
+        "affectedNotamsValue"
+      ).textContent =
+        notams.length;
+
+      document.getElementById(
+        "affectedSchedulesValue"
+      ).textContent =
+        uniqueScheduleIds.size;
+
+      document.getElementById(
+        "affectedMatchesValue"
+      ).textContent =
+        matchCount;
+    }
+
+
+    /********************************************************
+     * NOTAM 목록
+     ********************************************************/
+    function renderNotamList(notams) {
+      if (
+        !Array.isArray(notams) ||
+        notams.length === 0
+      ) {
+        notamListElement.innerHTML =
+          '<div class="status-message">' +
+          "현재 필터 조건에 해당하는 영향 NOTAM이 없습니다." +
+          "</div>";
+
+        return;
+      }
+
+      notamListElement.innerHTML =
+        notams
+          .map(
+            function (notam) {
+              return buildNotamCardHtml(
+                notam
+              );
+            }
+          )
+          .join("");
+
+      notamListElement
+        .querySelectorAll(
+          ".notam-card"
+        )
+        .forEach(
+          function (card) {
+            card.addEventListener(
+              "click",
+              function () {
+                const notamNo =
+                  card.dataset.notamNo;
+
+                selectNotam(
+                  notamNo
+                );
+              }
+            );
+          }
+        );
+    }
+
+
+    function buildNotamCardHtml(notam) {
+      const activeClass =
+        state.selectedNotamNo ===
+        notam.notamNo
+          ? " active"
+          : "";
+
+      const scheduleModeBadge =
+        buildScheduleModeBadge(
+          notam.scheduleParsingMode
+        );
+
+      const schedulesHtml =
+        notam.schedules
+          .map(
+            buildScheduleItemHtml
+          )
+          .join("");
+
+      const geometryLabel =
+        getGeometryLabel(
+          notam
+        );
+
+      return (
+        '<article class="notam-card' +
+        activeClass +
+        '" data-notam-no="' +
+        escapeAttribute(
+          notam.notamNo
+        ) +
+        '">' +
+
+          '<div class="notam-header">' +
+            '<div class="notam-number">' +
+              escapeHtml(
+                notam.notamNo
+              ) +
+            "</div>" +
+
+            scheduleModeBadge +
+          "</div>" +
+
+          '<div class="notam-title">' +
+            escapeHtml(
+              notam.text ||
+              notam.qcodeMean ||
+              "Prohibited area activated"
+            ) +
+          "</div>" +
+
+          '<div class="notam-meta">' +
+            "<div><strong>전체 유효기간:</strong> " +
+              escapeHtml(
+                notam.startLabel
+              ) +
+              " ~ " +
+              escapeHtml(
+                notam.endLabel
+              ) +
+            "</div>" +
+
+            "<div><strong>고도:</strong> " +
+              escapeHtml(
+                notam.altitudeLower ||
+                "-"
+              ) +
+              " / " +
+              escapeHtml(
+                notam.altitudeUpper ||
+                "-"
+              ) +
+            "</div>" +
+
+            "<div><strong>구역:</strong> " +
+              escapeHtml(
+                geometryLabel
+              ) +
+            "</div>" +
+
+            (
+              notam.dScheduleText
+                ? "<div><strong>D) 활성시간:</strong> " +
+                    escapeHtml(
+                      notam.dScheduleText
+                    ) +
+                  "</div>"
+                : ""
+            ) +
+          "</div>" +
+
+          '<div class="schedule-count">' +
+            "<span>영향 운항</span>" +
+            '<span class="badge badge-red">' +
+              notam.schedules.length +
+              "편" +
+            "</span>" +
+          "</div>" +
+
+          '<div class="schedule-list">' +
+            schedulesHtml +
+          "</div>" +
+
+        "</article>"
+      );
+    }
+
+
+    function buildScheduleItemHtml(
+      schedule
+    ) {
+      const directionBadgeClass =
+        schedule.direction ===
+        "KOREA_DEPARTURE"
+          ? "badge-blue"
+          : schedule.direction ===
+            "KOREA_ARRIVAL"
+          ? "badge-green"
+          : "badge-orange";
+
+      return (
+        '<div class="schedule-item">' +
+
+          '<div class="schedule-route">' +
+            "<span>" +
+              escapeHtml(
+                schedule.aircraft
+              ) +
+              " · " +
+              escapeHtml(
+                schedule.route
+              ) +
+            "</span>" +
+
+            '<span class="badge ' +
+              directionBadgeClass +
+            '">' +
+              escapeHtml(
+                schedule.directionLabel
+              ) +
+            "</span>" +
+          "</div>" +
+
+          '<div class="schedule-time">' +
+            "ETD " +
+            escapeHtml(
+              schedule.departureUtcLabel
+            ) +
+            "<br>" +
+            "ETA " +
+            escapeHtml(
+              schedule.arrivalUtcLabel
+            ) +
+            "<br>" +
+            "비교 " +
+            escapeHtml(
+              schedule.comparisonStartLabel
+            ) +
+            " ~ " +
+            escapeHtml(
+              schedule.comparisonEndLabel
+            ) +
+          "</div>" +
+
+          '<div class="matched-window">' +
+            "겹친 NOTAM 활성시간: " +
+            escapeHtml(
+              schedule.matchedNotamStartLabel
+            ) +
+            " ~ " +
+            escapeHtml(
+              schedule.matchedNotamEndLabel
+            ) +
+          "</div>" +
+
+        "</div>"
+      );
+    }
+
+
+    /********************************************************
+     * 지도 렌더링
+     ********************************************************/
+    function renderMap(notams) {
+      clearMapLayers();
+
+      const bounds = [];
+
+      notams.forEach(
+        function (notam) {
+          const layers =
+            createNotamLayers(
+              notam
+            );
+
+          layers.forEach(
+            function (layer) {
+              layer.addTo(
+                notamLayerGroup
+              );
+            }
+          );
+
+          state.mapLayers.set(
+            notam.notamNo,
+            layers
+          );
+
+          collectLayerBounds(
+            layers,
+            bounds
+          );
+        }
+      );
+
+      if (bounds.length > 0) {
+        map.fitBounds(
+          bounds,
+          {
+            padding:
+              [30, 30],
+            maxZoom:
+              10
+          }
+        );
+      } else {
+        map.setView(
+          [36.4, 127.8],
+          7
+        );
+      }
+    }
+
+
+    function createNotamLayers(
+      notam
+    ) {
+      const layers = [];
+
+      const popupHtml =
+        buildPopupHtml(
+          notam
+        );
+
+      /*
+       * 원형 구역
+       */
+      if (
+        notam.center &&
+        isFiniteNumber(
+          notam.center.lat
+        ) &&
+        isFiniteNumber(
+          notam.center.lng
+        ) &&
+        isFiniteNumber(
+          notam.coreRadiusNm
+        ) &&
+        Number(
+          notam.coreRadiusNm
+        ) > 0
+      ) {
+        /*
+         * 버퍼를 먼저 그려야
+         * 핵심 구역이 위에 표시됨
+         */
+        if (
+          isFiniteNumber(
+            notam.bufferRadiusNm
+          ) &&
+          Number(
+            notam.bufferRadiusNm
+          ) >
+          Number(
+            notam.coreRadiusNm
+          )
+        ) {
+          const bufferCircle =
+            L.circle(
+              [
+                Number(
+                  notam.center.lat
+                ),
+                Number(
+                  notam.center.lng
+                )
+              ],
+              {
+                radius:
+                  nmToMeters(
+                    notam.bufferRadiusNm
+                  ),
+
+                color:
+                  "#f79009",
+
+                weight:
+                  2,
+
+                fillColor:
+                  "#f79009",
+
+                fillOpacity:
+                  0.18,
+
+                dashArray:
+                  "6 5"
+              }
+            );
+
+          bufferCircle.bindPopup(
+            popupHtml
+          );
+
+          layers.push(
+            bufferCircle
+          );
+        }
+
+        const coreCircle =
+          L.circle(
+            [
+              Number(
+                notam.center.lat
+              ),
+              Number(
+                notam.center.lng
+              )
+            ],
+            {
+              radius:
+                nmToMeters(
+                  notam.coreRadiusNm
+                ),
+
+              color:
+                "#d92d20",
+
+              weight:
+                3,
+
+              fillColor:
+                "#d92d20",
+
+              fillOpacity:
+                0.32
+            }
+          );
+
+        coreCircle.bindPopup(
+          popupHtml
+        );
+
+        coreCircle.on(
+          "click",
+          function () {
+            highlightCard(
+              notam.notamNo
+            );
+          }
+        );
+
+        layers.push(
+          coreCircle
+        );
+      }
+
+      /*
+       * 다각형 구역
+       */
+      if (
+        Array.isArray(
+          notam.polygon
+        ) &&
+        notam.polygon.length >= 3
+      ) {
+        const polygonLatLngs =
+          notam.polygon
+            .filter(
+              function (point) {
+                return (
+                  point &&
+                  isFiniteNumber(
+                    point.lat
+                  ) &&
+                  isFiniteNumber(
+                    point.lng
+                  )
+                );
+              }
+            )
+            .map(
+              function (point) {
+                return [
+                  Number(
+                    point.lat
+                  ),
+                  Number(
+                    point.lng
+                  )
+                ];
+              }
+            );
+
+        if (
+          polygonLatLngs.length >= 3
+        ) {
+          const polygon =
+            L.polygon(
+              polygonLatLngs,
+              {
+                color:
+                  "#d92d20",
+
+                weight:
+                  3,
+
+                fillColor:
+                  "#d92d20",
+
+                fillOpacity:
+                  0.30
+              }
+            );
+
+          polygon.bindPopup(
+            popupHtml
+          );
+
+          polygon.on(
+            "click",
+            function () {
+              highlightCard(
+                notam.notamNo
+              );
+            }
+          );
+
+          layers.push(
+            polygon
+          );
+        }
+      }
+
+      /*
+       * 좌표만 있고 반경이 없는 경우
+       */
+      if (
+        layers.length === 0 &&
+        notam.center &&
+        isFiniteNumber(
+          notam.center.lat
+        ) &&
+        isFiniteNumber(
+          notam.center.lng
+        )
+      ) {
+        const marker =
+          L.circleMarker(
+            [
+              Number(
+                notam.center.lat
+              ),
+              Number(
+                notam.center.lng
+              )
+            ],
+            {
+              radius:
+                7,
+
+              color:
+                "#d92d20",
+
+              fillColor:
+                "#d92d20",
+
+              fillOpacity:
+                0.6,
+
+              weight:
+                2
+            }
+          );
+
+        marker.bindPopup(
+          popupHtml
+        );
+
+        layers.push(
+          marker
+        );
+      }
+
+      return layers;
+    }
+
+
+    function buildPopupHtml(
+      notam
+    ) {
+      return (
+        '<div class="popup-title">' +
+          escapeHtml(
+            notam.notamNo
+          ) +
+        "</div>" +
+
+        '<div class="popup-row"><strong>구역:</strong> ' +
+          escapeHtml(
+            getGeometryLabel(
+              notam
+            )
+          ) +
+        "</div>" +
+
+        '<div class="popup-row"><strong>유효기간:</strong> ' +
+          escapeHtml(
+            notam.startLabel
+          ) +
+          " ~ " +
+          escapeHtml(
+            notam.endLabel
+          ) +
+        "</div>" +
+
+        '<div class="popup-row"><strong>고도:</strong> ' +
+          escapeHtml(
+            notam.altitudeLower ||
+            "-"
+          ) +
+          " / " +
+          escapeHtml(
+            notam.altitudeUpper ||
+            "-"
+          ) +
+        "</div>" +
+
+        '<div class="popup-row"><strong>영향 운항:</strong> ' +
+          numberOrZero(
+            notam.schedules &&
+            notam.schedules.length
+          ) +
+          "편" +
+        "</div>" +
+
+        (
+          notam.dScheduleText
+            ? '<div class="popup-row"><strong>D):</strong> ' +
+                escapeHtml(
+                  notam.dScheduleText
+                ) +
+              "</div>"
+            : ""
+        ) +
+
+        '<div class="popup-text">' +
+          escapeHtml(
+            notam.text ||
+            notam.fullText ||
+            ""
+          ) +
+        "</div>"
+      );
+    }
+
+
+    /********************************************************
+     * NOTAM 선택
+     ********************************************************/
+    function selectNotam(
+      notamNo
+    ) {
+      state.selectedNotamNo =
+        notamNo;
+
+      highlightCard(
+        notamNo
+      );
+
+      const layers =
+        state.mapLayers.get(
+          notamNo
+        );
+
+      if (
+        !layers ||
+        layers.length === 0
+      ) {
+        return;
+      }
+
+      const layerBounds = [];
+
+      collectLayerBounds(
+        layers,
+        layerBounds
+      );
+
+      if (
+        layerBounds.length > 0
+      ) {
+        map.fitBounds(
+          layerBounds,
+          {
+            padding:
+              [45, 45],
+            maxZoom:
+              12
+          }
+        );
+      }
+
+      const popupLayer =
+        layers[
+          layers.length - 1
+        ];
+
+      if (
+        popupLayer &&
+        typeof popupLayer.openPopup ===
+          "function"
+      ) {
+        popupLayer.openPopup();
+      }
+    }
+
+
+    function highlightCard(
+      notamNo
+    ) {
+      state.selectedNotamNo =
+        notamNo;
+
+      notamListElement
+        .querySelectorAll(
+          ".notam-card"
+        )
+        .forEach(
+          function (card) {
+            const matches =
+              card.dataset.notamNo ===
+              notamNo;
+
+            card.classList.toggle(
+              "active",
+              matches
+            );
+
+            if (matches) {
+              card.scrollIntoView({
+                behavior:
+                  "smooth",
+
+                block:
+                  "nearest"
+              });
+            }
+          }
+        );
+    }
+
+
+    /********************************************************
+     * 지도 보조함수
+     ********************************************************/
+    function clearMapLayers() {
+      notamLayerGroup.clearLayers();
+      state.mapLayers.clear();
+    }
+
+
+    function collectLayerBounds(
+      layers,
+      target
+    ) {
+      layers.forEach(
+        function (layer) {
+          if (
+            layer &&
+            typeof layer.getBounds ===
+              "function"
+          ) {
+            const bounds =
+              layer.getBounds();
+
+            if (
+              bounds &&
+              bounds.isValid()
+            ) {
+              target.push(
+                bounds.getSouthWest()
+              );
+
+              target.push(
+                bounds.getNorthEast()
+              );
+            }
+
+          } else if (
+            layer &&
+            typeof layer.getLatLng ===
+              "function"
+          ) {
+            target.push(
+              layer.getLatLng()
+            );
+          }
+        }
+      );
+    }
+
+
+    function nmToMeters(
+      nauticalMiles
+    ) {
+      return (
+        Number(
+          nauticalMiles
+        ) *
+        1852
+      );
+    }
+
+
+    /********************************************************
+     * 표시 보조함수
+     ********************************************************/
+    function buildScheduleModeBadge(
+      mode
+    ) {
+      if (
+        mode ===
+        "D_SCHEDULE"
+      ) {
+        return (
+          '<span class="badge badge-orange">' +
+          "D) 실제 시간" +
+          "</span>"
+        );
+      }
+
+      if (
+        mode ===
+        "D_PARSE_FALLBACK_B_C"
+      ) {
+        return (
+          '<span class="badge badge-red">' +
+          "D) 파싱 확인 필요" +
+          "</span>"
+        );
+      }
+
+      return (
+        '<span class="badge badge-blue">' +
+        "B)-C) 전체" +
+        "</span>"
+      );
+    }
+
+
+    function getGeometryLabel(
+      notam
+    ) {
+      if (
+        notam.geometryType ===
+        "POLYGON"
+      ) {
+        return (
+          "다각형 " +
+          (
+            Array.isArray(
+              notam.polygon
+            )
+              ? notam.polygon.length
+              : 0
+          ) +
+          "개 좌표"
+        );
+      }
+
+      if (
+        isFiniteNumber(
+          notam.coreRadiusNm
+        )
+      ) {
+        let text =
+          "반경 " +
+          Number(
+            notam.coreRadiusNm
+          ) +
+          " NM";
+
+        if (
+          isFiniteNumber(
+            notam.bufferRadiusNm
+          )
+        ) {
+          text +=
+            " / 버퍼 " +
+            Number(
+              notam.bufferRadiusNm
+            ) +
+            " NM";
+        }
+
+        return text;
+      }
+
+      return "구역 정보 확인 필요";
+    }
+
+
+    function setLoading(
+      loading
+    ) {
+      loadingOverlay.classList.toggle(
+        "visible",
+        loading
+      );
+
+      refreshButton.disabled =
+        loading;
+
+      refreshButton.textContent =
+        loading
+          ? "조회 중..."
+          : "최신 정보 새로고침";
+    }
+
+
+    function numberOrZero(
+      value
+    ) {
+      const number =
+        Number(
+          value
+        );
+
+      return Number.isFinite(
+        number
+      )
+        ? number
+        : 0;
+    }
+
+
+    function isFiniteNumber(
+      value
+    ) {
+      return Number.isFinite(
+        Number(
+          value
+        )
+      );
+    }
+
+
+    function escapeHtml(
+      value
+    ) {
+      return String(
+        value == null
+          ? ""
+          : value
+      )
+        .replace(
+          /&/g,
+          "&amp;"
+        )
+        .replace(
+          /</g,
+          "&lt;"
+        )
+        .replace(
+          />/g,
+          "&gt;"
+        )
+        .replace(
+          /"/g,
+          "&quot;"
+        )
+        .replace(
+          /'/g,
+          "&#039;"
+        );
+    }
+
+
+    function escapeAttribute(
+      value
+    ) {
+      return escapeHtml(
+        value
+      );
+    }
+  </script>
+</body>
+</html>
