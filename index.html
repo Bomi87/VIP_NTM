@@ -294,7 +294,7 @@
 
     .summary-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 7px;
     }
 
@@ -502,25 +502,62 @@
       font-weight: 800;
     }
 
-    .schedule-count {
+    .schedule-toggle-row {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
+      justify-content: flex-end;
 
-      margin-top: 8px;
+      margin-top: 9px;
       padding-top: 8px;
 
       border-top: 1px solid #eaecf0;
+    }
 
-      font-size: 11px;
-      font-weight: 700;
+    .schedule-toggle-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+
+      padding: 6px 10px;
+
+      border: 1px solid #f79009;
+      border-radius: 7px;
+
+      background: var(--orange-soft);
+      color: #b54708;
+
+      font-size: 10px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .other-notam .schedule-toggle-button {
+      border-color: #84adff;
+      background: var(--blue-soft);
+      color: #175cd3;
+    }
+
+    .schedule-toggle-button:hover {
+      filter: brightness(0.98);
+    }
+
+    .schedule-toggle-button .toggle-arrow {
+      font-size: 9px;
+      transition: transform 0.15s ease;
+    }
+
+    .schedule-toggle-button.expanded .toggle-arrow {
+      transform: rotate(180deg);
     }
 
     .schedule-list {
-      display: grid;
+      display: none;
       gap: 6px;
 
       margin-top: 7px;
+    }
+
+    .schedule-list.visible {
+      display: grid;
     }
 
     .schedule-item {
@@ -922,7 +959,7 @@
           <div class="summary-grid">
 
             <div class="summary-card danger">
-              <div class="label">영향 NOTAM</div>
+              <div class="label">영향 NTM</div>
 
               <div
                 id="affectedNotamsValue"
@@ -932,30 +969,8 @@
               </div>
             </div>
 
-            <div class="summary-card warning">
-              <div class="label">영향 운항</div>
-
-              <div
-                id="affectedSchedulesValue"
-                class="value"
-              >
-                -
-              </div>
-            </div>
-
-            <div class="summary-card primary">
-              <div class="label">영향 매칭</div>
-
-              <div
-                id="affectedMatchesValue"
-                class="value"
-              >
-                -
-              </div>
-            </div>
-
             <div class="summary-card other">
-              <div class="label">기타 NOTAM</div>
+              <div class="label">기타 NTM</div>
 
               <div
                 id="otherNotamsValue"
@@ -1668,39 +1683,9 @@
           }
         );
 
-      const uniqueImpactScheduleIds =
-        new Set();
-
-      let impactMatchCount =
-        0;
-
-      impactNotams.forEach(
-        function (notam) {
-          notam.schedules.forEach(
-            function (schedule) {
-              uniqueImpactScheduleIds.add(
-                schedule.id
-              );
-
-              impactMatchCount++;
-            }
-          );
-        }
-      );
-
       setText(
         "affectedNotamsValue",
         impactNotams.length
-      );
-
-      setText(
-        "affectedSchedulesValue",
-        uniqueImpactScheduleIds.size
-      );
-
-      setText(
-        "affectedMatchesValue",
-        impactMatchCount
       );
 
       setText(
@@ -1713,8 +1698,6 @@
     function resetSummary() {
       [
         "affectedNotamsValue",
-        "affectedSchedulesValue",
-        "affectedMatchesValue",
         "otherNotamsValue"
       ].forEach(
         function (id) {
@@ -1771,6 +1754,55 @@
             );
           }
         );
+
+      notamListElement
+        .querySelectorAll(
+          ".schedule-toggle-button"
+        )
+        .forEach(
+          function (button) {
+            button.addEventListener(
+              "click",
+              function (event) {
+                event.stopPropagation();
+
+                const targetId =
+                  button.dataset.targetId;
+
+                const scheduleList =
+                  document.getElementById(
+                    targetId
+                  );
+
+                if (!scheduleList) {
+                  return;
+                }
+
+                const expanded =
+                  button.getAttribute(
+                    "aria-expanded"
+                  ) === "true";
+
+                button.setAttribute(
+                  "aria-expanded",
+                  expanded
+                    ? "false"
+                    : "true"
+                );
+
+                button.classList.toggle(
+                  "expanded",
+                  !expanded
+                );
+
+                scheduleList.classList.toggle(
+                  "visible",
+                  !expanded
+                );
+              }
+            );
+          }
+        );
     }
 
 
@@ -1815,6 +1847,15 @@
             }
           )
           .join("");
+
+      const scheduleListId =
+        "schedule-list-" +
+        String(
+          notam.notamNo || "notam"
+        ).replace(
+          /[^a-zA-Z0-9_-]/g,
+          "-"
+        );
 
       return (
         '<article class="notam-card' +
@@ -1916,30 +1957,39 @@
 
           "</div>" +
 
-          '<div class="schedule-count">' +
+          '<div class="schedule-toggle-row">' +
 
-            "<span>" +
-              (
-                other
-                  ? "참고 운항"
-                  : "영향 운항"
-              ) +
-            "</span>" +
+            '<button class="schedule-toggle-button" ' +
+              'type="button" ' +
+              'aria-expanded="false" ' +
+              'data-target-id="' +
+                escapeAttribute(
+                  scheduleListId
+                ) +
+              '">' +
 
-            '<span class="badge ' +
-              (
-                other
-                  ? "badge-other"
-                  : "badge-red"
-              ) +
-            '">' +
-              notam.schedules.length +
-              "편" +
-            "</span>" +
+              "영향 운항편 " +
+              '<span class="badge ' +
+                (
+                  other
+                    ? "badge-other"
+                    : "badge-red"
+                ) +
+              '">' +
+                notam.schedules.length +
+                "편" +
+              "</span>" +
+              '<span class="toggle-arrow">▼</span>' +
+
+            "</button>" +
 
           "</div>" +
 
-          '<div class="schedule-list">' +
+          '<div id="' +
+            escapeAttribute(
+              scheduleListId
+            ) +
+            '" class="schedule-list">' +
             schedulesHtml +
           "</div>" +
 
@@ -1952,15 +2002,6 @@
       schedule,
       other
     ) {
-      const directionBadgeClass =
-        schedule.direction ===
-        "KOREA_DEPARTURE"
-          ? "badge-blue"
-          : schedule.direction ===
-            "KOREA_ARRIVAL"
-          ? "badge-green"
-          : "badge-orange";
-
       return (
         '<div class="schedule-item">' +
 
@@ -1973,14 +2014,6 @@
               " · " +
               escapeHtml(
                 schedule.route
-              ) +
-            "</span>" +
-
-            '<span class="badge ' +
-              directionBadgeClass +
-            '">' +
-              escapeHtml(
-                schedule.directionLabel
               ) +
             "</span>" +
 
@@ -1997,34 +2030,6 @@
             "ETA " +
             escapeHtml(
               schedule.arrivalUtcLabel
-            ) +
-            "<br>" +
-
-            "비교시간 " +
-            escapeHtml(
-              schedule.comparisonStartLabel
-            ) +
-            " ~ " +
-            escapeHtml(
-              schedule.comparisonEndLabel
-            ) +
-
-          "</div>" +
-
-          '<div class="matched-window">' +
-
-            (
-              other
-                ? "참고상 겹친 유효시간: "
-                : "겹친 NOTAM 활성시간: "
-            ) +
-
-            escapeHtml(
-              schedule.matchedNotamStartLabel
-            ) +
-            " ~ " +
-            escapeHtml(
-              schedule.matchedNotamEndLabel
             ) +
 
           "</div>" +
