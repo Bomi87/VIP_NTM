@@ -2763,27 +2763,17 @@
         );
       }
 
-      const layers =
-        [];
-
-      const allBounds =
-        [];
-
-      let pointCount =
-        0;
+      const layers = [];
+      const allBounds = [];
+      let pointCount = 0;
 
       /*
-       * 여러 LineString이 각각 별도 경도 세계(-180~180)로
-       * 파싱되어 날짜변경선에서 서로 떨어지는 현상을 막기 위한
-       * 공통 기준 경도입니다. 각 다음 선분의 시작점을 이전 선분
-       * 끝점과 가장 가까운 경도로 이동시킵니다.
+       * 모든 Route 선분과 Waypoint를 동일한 360도 세계에 배치합니다.
+       * 선분 처리 순서에 따라 기준 경도가 바뀌지 않도록
+       * KML에서 처음 발견된 Route 좌표 하나를 고정 기준으로 사용합니다.
        */
-      let routeReferenceLng =
-        null;
+      let routeAnchorLng = null;
 
-      /*
-       * LineString 처리
-       */
       const lineStrings =
         Array.from(
           xml.getElementsByTagName(
@@ -2791,164 +2781,313 @@
           )
         );
 
+      for (
+        let i = 0;
+        i < lineStrings.length;
+        i++
+      ) {
+        const coordinatesNode =
+          lineStrings[i]
+            .getElementsByTagName(
+              "coordinates"
+            )[0];
+
+        if (!coordinatesNode) {
+          continue;
+        }
+
+        const coordinates =
+          parseKmlCoordinates(
+            coordinatesNode.textContent
+          );
+
+        if (coordinates.length > 0) {
+          routeAnchorLng =
+            Number(
+              coordinates[0][1]
+            );
+          break;
+        }
+      }
+
+      /*
+       * LineString이 없고 gx:Track만 있는 KML 대응
+       */
+      const gxTracks =
+        Array.from(
+          xml.getElementsByTagName(
+            "gx:Track"
+          )
+        ).concat(
+          Array.from(
+            xml.getElementsByTagName(
+              "Track"
+            )
+          ).filter(
+            function (node) {
+              return String(
+                node.namespaceURI || ""
+              ).toLowerCase().includes(
+                "google.com/kml/ext"
+              );
+            }
+          )
+        );
+
+      if (
+        routeAnchorLng === null
+      ) {
+        for (
+          let i = 0;
+          i < gxTracks.length;
+          i++
+        ) {
+          const coordNodes =
+            Array.from(
+              gxTracks[i]
+                .getElementsByTagName(
+                  "gx:coord"
+                )
+            ).concat(
+              Array.from(
+                gxTracks[i]
+                  .getElementsByTagName(
+                    "coord"
+                  )
+              )
+            );
+
+          if (coordNodes.length === 0) {
+            continue;
+          }
+
+          const parts =
+            String(
+              coordNodes[0].textContent || ""
+            )
+              .trim()
+              .split(/\s+/);
+
+          const lng =
+            Number(parts[0]);
+
+          if (Number.isFinite(lng)) {
+            routeAnchorLng = lng;
+            break;
+          }
+        }
+      }
+
+      function drawRouteSegment(
+        rawLatLngs,
+        popupLabel
+      ) {
+        if (
+          !Array.isArray(rawLatLngs) ||
+          rawLatLngs.length < 2
+        ) {
+          return;
+        }
+
+        /*
+         * 각 LineString을 서로 연결하지 않고 독립적으로 그리되,
+         * 첫 경도만 공통 anchor에 맞춘 뒤 선분 내부를 연속 보정합니다.
+         */
+        const latLngs =
+          unwrapRouteLongitudes(
+            rawLatLngs,
+            routeAnchorLng
+          );
+
+        if (latLngs.length < 2) {
+          return;
+        }
+
+        pointCount +=
+          latLngs.length;
+
+        const outline =
+          L.polyline(
+            latLngs,
+            {
+              color:
+                config.outlineColor,
+              weight:
+                7,
+              opacity:
+                0.72,
+              lineJoin:
+                "round",
+              lineCap:
+                "round",
+              noClip:
+                true
+            }
+          );
+
+        const routeLine =
+          L.polyline(
+            latLngs,
+            {
+              color:
+                config.color,
+              weight:
+                4,
+              opacity:
+                1,
+              lineJoin:
+                "round",
+              lineCap:
+                "round",
+              noClip:
+                true
+            }
+          );
+
+        const popupHtml =
+          '<div class="route-popup-title">' +
+            escapeHtml(
+              popupLabel ||
+              config.aircraft + " Route"
+            ) +
+          "</div>" +
+          "<div>" +
+            latLngs.length +
+            "개 경로 좌표" +
+          "</div>";
+
+        outline.bindPopup(
+          popupHtml
+        );
+
+        routeLine.bindPopup(
+          popupHtml
+        );
+
+        layers.push(
+          outline,
+          routeLine
+        );
+
+        latLngs.forEach(
+          function (latLng) {
+            allBounds.push(latLng);
+          }
+        );
+      }
+
+      /*
+       * LineString은 각각 독립 선분으로 표시합니다.
+       * 서로 다른 LineString 끝과 시작을 인위적으로 연결하지 않습니다.
+       */
       lineStrings.forEach(
         function (lineString) {
           const coordinatesNode =
-            lineString.getElementsByTagName(
-              "coordinates"
-            )[0];
+            lineString
+              .getElementsByTagName(
+                "coordinates"
+              )[0];
 
           if (!coordinatesNode) {
             return;
           }
 
-          let latLngs =
+          const placemark =
+            lineString.closest
+              ? lineString.closest("Placemark")
+              : null;
+
+          const nameNode =
+            placemark
+              ? placemark.getElementsByTagName(
+                  "name"
+                )[0]
+              : null;
+
+          drawRouteSegment(
             parseKmlCoordinates(
               coordinatesNode.textContent
-            );
-
-          /*
-           * 국제 날짜변경선(±180도)을 통과하는 루트는
-           * -179도와 +179도가 지도 양쪽 끝으로 갈라지지 않도록
-           * 이전 좌표에 가장 가까운 연속 경도로 보정합니다.
-           */
-          latLngs =
-            unwrapRouteLongitudes(
-              latLngs,
-              routeReferenceLng
-            );
-
-          if (latLngs.length > 0) {
-            routeReferenceLng =
-              latLngs[
-                latLngs.length - 1
-              ][1];
-          }
-
-          if (
-            latLngs.length < 2
-          ) {
-            return;
-          }
-
-          pointCount +=
-            latLngs.length;
-
-          /*
-           * 검은 외곽선
-           */
-          const outline =
-            L.polyline(
-              latLngs,
-              {
-                color:
-                  config.outlineColor,
-
-                weight:
-                  7,
-
-                opacity:
-                  0.72,
-
-                lineJoin:
-                  "round",
-
-                lineCap:
-                  "round"
-              }
-            );
-
-          /*
-           * 실제 Route 색상
-           */
-          const routeLine =
-            L.polyline(
-              latLngs,
-              {
-                color:
-                  config.color,
-
-                weight:
-                  4,
-
-                opacity:
-                  1,
-
-                lineJoin:
-                  "round",
-
-                lineCap:
-                  "round"
-              }
-            );
-
-          const popupHtml =
-            '<div class="route-popup-title">' +
-              escapeHtml(
-                config.aircraft
-              ) +
-              " Route" +
-            "</div>" +
-
-            "<div>" +
-              latLngs.length +
-              "개 경로 좌표" +
-            "</div>";
-
-          outline.bindPopup(
-            popupHtml
-          );
-
-          routeLine.bindPopup(
-            popupHtml
-          );
-
-          layers.push(
-            outline,
-            routeLine
-          );
-
-          latLngs.forEach(
-            function (latLng) {
-              allBounds.push(
-                latLng
-              );
-            }
-          );
-
-          /*
-           * 출발점
-           */
-          const departureMarker =
-            createRoutePointMarker(
-              latLngs[0],
-              config,
-              "DEP",
-              true
-            );
-
-          /*
-           * 도착점
-           */
-          const arrivalMarker =
-            createRoutePointMarker(
-              latLngs[
-                latLngs.length - 1
-              ],
-              config,
-              "ARR",
-              false
-            );
-
-          layers.push(
-            departureMarker,
-            arrivalMarker
+            ),
+            nameNode &&
+            nameNode.textContent.trim()
+              ? nameNode.textContent.trim()
+              : config.aircraft + " Route"
           );
         }
       );
 
       /*
-       * KML Point Placemark 처리
+       * gx:Track 처리
+       */
+      gxTracks.forEach(
+        function (track) {
+          const coordNodes =
+            Array.from(
+              track.getElementsByTagName(
+                "gx:coord"
+              )
+            ).concat(
+              Array.from(
+                track.getElementsByTagName(
+                  "coord"
+                )
+              )
+            );
+
+          const rawLatLngs =
+            coordNodes
+              .map(
+                function (node) {
+                  const parts =
+                    String(
+                      node.textContent || ""
+                    )
+                      .trim()
+                      .split(/\s+/);
+
+                  const lng =
+                    Number(parts[0]);
+
+                  const lat =
+                    Number(parts[1]);
+
+                  if (
+                    !Number.isFinite(lat) ||
+                    !Number.isFinite(lng)
+                  ) {
+                    return null;
+                  }
+
+                  return [lat, lng];
+                }
+              )
+              .filter(Boolean);
+
+          const placemark =
+            track.closest
+              ? track.closest("Placemark")
+              : null;
+
+          const nameNode =
+            placemark
+              ? placemark.getElementsByTagName(
+                  "name"
+                )[0]
+              : null;
+
+          drawRouteSegment(
+            rawLatLngs,
+            nameNode &&
+            nameNode.textContent.trim()
+              ? nameNode.textContent.trim()
+              : config.aircraft + " Route"
+          );
+        }
+      );
+
+      /*
+       * KML Point Placemark는 원래 Waypoint 이름을 그대로 사용합니다.
+       * HL8080 DEP / HL8080 ARR 같은 임의의 끝점 마커는 생성하지 않습니다.
        */
       const placemarks =
         Array.from(
@@ -2977,22 +3116,20 @@
             return;
           }
 
-          let latLngs =
+          const rawLatLngs =
             parseKmlCoordinates(
               coordinatesNode.textContent
             );
 
-          latLngs =
-            unwrapRouteLongitudes(
-              latLngs,
-              routeReferenceLng
-            );
-
-          if (
-            latLngs.length === 0
-          ) {
+          if (rawLatLngs.length === 0) {
             return;
           }
+
+          const adjustedLatLng =
+            unwrapRouteLongitudes(
+              [rawLatLngs[0]],
+              routeAnchorLng
+            )[0];
 
           const nameNode =
             placemark.getElementsByTagName(
@@ -3005,7 +3142,8 @@
             )[0];
 
           const pointName =
-            nameNode
+            nameNode &&
+            nameNode.textContent.trim()
               ? nameNode.textContent.trim()
               : "Waypoint";
 
@@ -3016,174 +3154,48 @@
 
           const marker =
             L.circleMarker(
-              latLngs[0],
+              adjustedLatLng,
               {
                 radius:
                   5,
-
                 color:
                   config.outlineColor,
-
                 weight:
                   2,
-
                 fillColor:
                   config.color,
-
                 fillOpacity:
-                  0.95
-              }
-            );
-
-          marker.bindPopup(
-            '<div class="route-popup-title">' +
-              escapeHtml(
-                pointName
-              ) +
-            "</div>" +
-
-            "<div>" +
-              escapeHtml(
-                config.aircraft
-              ) +
-            "</div>" +
-
-            (
-              description
-                ? (
-                    '<div style="margin-top:5px;font-size:10px;">' +
-                      escapeHtml(
-                        description
-                      ) +
-                    "</div>"
-                  )
-                : ""
-            )
-          );
-
-          layers.push(
-            marker
-          );
-
-          allBounds.push(
-            latLngs[0]
-          );
-        }
-      );
-
-      /*
-       * LineString 없이 gx:Track만 존재하는 KML 대응
-       */
-      const gxCoordinates =
-        Array.from(
-          xml.getElementsByTagNameNS(
-            "*",
-            "coord"
-          )
-        );
-
-      if (
-        lineStrings.length === 0 &&
-        gxCoordinates.length > 1
-      ) {
-        let latLngs =
-          gxCoordinates
-            .map(
-              function (node) {
-                const parts =
-                  String(
-                    node.textContent ||
-                    ""
-                  )
-                    .trim()
-                    .split(
-                      /\s+/
-                    );
-
-                const lng =
-                  Number(
-                    parts[0]
-                  );
-
-                const lat =
-                  Number(
-                    parts[1]
-                  );
-
-                if (
-                  !Number.isFinite(
-                    lat
-                  ) ||
-                  !Number.isFinite(
-                    lng
-                  )
-                ) {
-                  return null;
-                }
-
-                return [
-                  lat,
-                  lng
-                ];
-              }
-            )
-            .filter(Boolean);
-
-        latLngs =
-          unwrapRouteLongitudes(
-            latLngs
-          );
-
-        if (
-          latLngs.length > 1
-        ) {
-          pointCount +=
-            latLngs.length;
-
-          const outline =
-            L.polyline(
-              latLngs,
-              {
-                color:
-                  config.outlineColor,
-
-                weight:
-                  7,
-
-                opacity:
-                  0.72
-              }
-            );
-
-          const routeLine =
-            L.polyline(
-              latLngs,
-              {
-                color:
-                  config.color,
-
-                weight:
-                  4,
-
-                opacity:
                   1
               }
             );
 
-          layers.push(
-            outline,
-            routeLine
-          );
-
-          latLngs.forEach(
-            function (latLng) {
-              allBounds.push(
-                latLng
-              );
+          marker.bindTooltip(
+            pointName,
+            {
+              permanent:
+                false,
+              direction:
+                "top"
             }
           );
+
+          marker.bindPopup(
+            '<div class="route-popup-title">' +
+              escapeHtml(pointName) +
+            "</div>" +
+            (
+              description
+                ? '<div class="popup-text">' +
+                    escapeHtml(description) +
+                  "</div>"
+                : ""
+            )
+          );
+
+          layers.push(marker);
+          allBounds.push(adjustedLatLng);
         }
-      }
+      );
 
       return {
         layers:
@@ -3207,40 +3219,25 @@
       referenceLng
     ) {
       if (
-        !Array.isArray(
-          latLngs
-        ) ||
+        !Array.isArray(latLngs) ||
         latLngs.length === 0
       ) {
         return [];
       }
 
       const firstLat =
-        Number(
-          latLngs[0][0]
-        );
+        Number(latLngs[0][0]);
 
       let firstLng =
-        Number(
-          latLngs[0][1]
-        );
+        Number(latLngs[0][1]);
 
-      /*
-       * 선분이 여러 개일 때 첫 좌표도 이전 선분의 끝점과
-       * 가장 가까운 360도 세계로 맞춥니다.
-       * 예: -170도 → 이전 끝점이 +165도라면 +190도로 변환.
-       */
       if (
         Number.isFinite(
-          Number(
-            referenceLng
-          )
+          Number(referenceLng)
         )
       ) {
         const reference =
-          Number(
-            referenceLng
-          );
+          Number(referenceLng);
 
         while (
           firstLng - reference > 180
@@ -3256,12 +3253,7 @@
       }
 
       const unwrapped =
-        [
-          [
-            firstLat,
-            firstLng
-          ]
-        ];
+        [[firstLat, firstLng]];
 
       for (
         let i = 1;
@@ -3269,14 +3261,10 @@
         i++
       ) {
         const lat =
-          Number(
-            latLngs[i][0]
-          );
+          Number(latLngs[i][0]);
 
         let lng =
-          Number(
-            latLngs[i][1]
-          );
+          Number(latLngs[i][1]);
 
         const previousLng =
           unwrapped[
@@ -3296,15 +3284,13 @@
         }
 
         unwrapped.push(
-          [
-            lat,
-            lng
-          ]
+          [lat, lng]
         );
       }
 
       return unwrapped;
     }
+
 
     function parseKmlCoordinates(
       coordinateText
