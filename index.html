@@ -1005,9 +1005,9 @@
 
             <select id="directionFilter">
               <option value="ALL">전체</option>
-              <option value="KOREA_DEPARTURE">한국 출발</option>
-              <option value="KOREA_ARRIVAL">한국 도착</option>
-              <option value="DOMESTIC">국내 운항</option>
+              <option value="KOREA_DEPARTURE">국제선(출발)</option>
+              <option value="KOREA_ARRIVAL">국제선(도착)</option>
+              <option value="DOMESTIC">국내선</option>
             </select>
           </div>
 
@@ -1018,8 +1018,8 @@
 
             <select id="classificationFilter">
               <option value="ALL">전체</option>
-              <option value="IMPACT">영향 NOTAM</option>
-              <option value="OTHER">기타 · 3일 이상</option>
+              <option value="IMPACT">영향 NTM</option>
+              <option value="OTHER">기타 NTM</option>
             </select>
           </div>
 
@@ -1047,7 +1047,7 @@
               class="legend-symbol legend-circle legend-red"
             ></span>
 
-            <span>실제 영향 금지공역</span>
+            <span>중심원</span>
           </div>
 
           <div class="legend-row">
@@ -1055,7 +1055,7 @@
               class="legend-symbol legend-circle legend-orange"
             ></span>
 
-            <span>금지공역 버퍼</span>
+            <span>버퍼존</span>
           </div>
 
           <div class="legend-row">
@@ -1063,7 +1063,7 @@
               class="legend-symbol legend-circle legend-blue"
             ></span>
 
-            <span>기타 · 3일 이상</span>
+            <span>기타 NTM</span>
           </div>
 
           <div class="legend-row">
@@ -1934,14 +1934,6 @@
 
           '<div class="notam-meta">' +
 
-            "<div><strong>분류:</strong> " +
-              (
-                other
-                  ? '<span class="classification-other">기타 · 영향 판정 제외</span>'
-                  : '<span class="classification-impact">실제 영향 NOTAM</span>'
-              ) +
-            "</div>" +
-
             "<div><strong>전체 유효기간:</strong> " +
               escapeHtml(
                 notam.startLabel ||
@@ -1951,16 +1943,6 @@
               escapeHtml(
                 notam.endLabel ||
                 "-"
-              ) +
-            "</div>" +
-
-            "<div><strong>기간 길이:</strong> " +
-              escapeHtml(
-                formatDurationHours(
-                  getNotamDurationHours(
-                    notam
-                  )
-                )
               ) +
             "</div>" +
 
@@ -1987,15 +1969,15 @@
             (
               notam.dScheduleText
                 ? (
-                    "<div><strong>D) 활성시간:</strong> " +
+                    "<div><strong>영향시간:</strong> D) " +
                       escapeHtml(
                         notam.dScheduleText
                       ) +
                     "</div>"
                   )
                 : (
-                    "<div><strong>활성시간:</strong> " +
-                      "D) 없음 · B)-C) 전체 적용" +
+                    "<div><strong>영향시간:</strong> " +
+                      "D) 없음" +
                     "</div>"
                   )
             ) +
@@ -2449,7 +2431,7 @@
         (
           notam.dScheduleText
             ? (
-                '<div class="popup-row"><strong>D):</strong> ' +
+                '<div class="popup-row"><strong>영향시간:</strong> D) ' +
                   escapeHtml(
                     notam.dScheduleText
                   ) +
