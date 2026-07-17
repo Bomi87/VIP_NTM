@@ -1915,15 +1915,15 @@
               notam.scheduleParsingMode
             );
 
+      /*
+       * 기타 NTM은 영향기간이 길거나 스케줄 미중첩인 NOTAM이므로
+       * 영향 운항편 목록을 표시하지 않는다.
+       *
+       * 영향 NTM만 schedules 목록을 표시한다.
+       */
       const displaySchedules =
         other
-          ? (
-              Array.isArray(
-                notam.matchedSchedules
-              )
-                ? notam.matchedSchedules
-                : []
-            )
+          ? []
           : (
               Array.isArray(
                 notam.schedules
@@ -1968,18 +1968,8 @@
                     ) +
                   '">' +
 
-                  (
-                    other
-                      ? "시간 중첩 운항편 "
-                      : "영향 운항편 "
-                  ) +
-                  '<span class="badge ' +
-                    (
-                      other
-                        ? "badge-blue"
-                        : "badge-red"
-                    ) +
-                  '">' +
+                  "영향 운항편 " +
+                  '<span class="badge badge-red">' +
                     displaySchedules.length +
                     "편" +
                   "</span>" +
