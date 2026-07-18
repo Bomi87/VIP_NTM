@@ -498,7 +498,8 @@
     }
 
     /* 영향 NTM의 실제 영향시간 강조 */
-    .impact-time-highlight {
+    .impact-time-highlight,
+    .schedule-impact-time {
       color: var(--red);
       font-weight: 800;
       text-decoration-line: underline;
@@ -954,6 +955,55 @@
         justify-content: center;
       }
     }
+
+
+    /********************************************************
+     * 모바일용 항상 보이는 커스텀 세로 스크롤바
+     ********************************************************/
+
+    .mobile-scrollbar-track {
+      display: none;
+    }
+
+    @media (max-width: 800px) {
+      .mobile-scrollbar-track {
+        position: fixed;
+        top: 6px;
+        right: 2px;
+        bottom: 6px;
+        z-index: 4900;
+
+        display: block;
+        width: 14px;
+
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.12);
+
+        pointer-events: none;
+      }
+
+      .mobile-scrollbar-thumb {
+        position: absolute;
+        top: 0;
+        left: 2px;
+
+        width: 10px;
+        min-height: 52px;
+
+        border: 1px solid rgba(255, 255, 255, 0.75);
+        border-radius: 999px;
+        background: rgba(52, 64, 84, 0.78);
+        box-shadow: 0 1px 4px rgba(16, 24, 40, 0.28);
+
+        transform: translateY(0);
+        transition: opacity 0.15s ease;
+      }
+
+      .mobile-scrollbar-track.not-scrollable {
+        opacity: 0;
+      }
+    }
+
   </style>
 </head>
 
@@ -1160,6 +1210,18 @@
       </section>
 
     </main>
+  </div>
+
+
+  <div
+    id="mobileScrollbarTrack"
+    class="mobile-scrollbar-track not-scrollable"
+    aria-hidden="true"
+  >
+    <div
+      id="mobileScrollbarThumb"
+      class="mobile-scrollbar-thumb"
+    ></div>
   </div>
 
   <div
@@ -1409,6 +1471,17 @@
       );
 
 
+    const mobileScrollbarTrack =
+      document.getElementById(
+        "mobileScrollbarTrack"
+      );
+
+    const mobileScrollbarThumb =
+      document.getElementById(
+        "mobileScrollbarThumb"
+      );
+
+
     /********************************************************
      * 이벤트
      ********************************************************/
@@ -1461,6 +1534,28 @@
     );
 
 
+    window.addEventListener(
+      "scroll",
+      updateMobileScrollbar,
+      { passive: true }
+    );
+
+    window.addEventListener(
+      "resize",
+      updateMobileScrollbar
+    );
+
+    window.addEventListener(
+      "orientationchange",
+      function () {
+        window.setTimeout(
+          updateMobileScrollbar,
+          120
+        );
+      }
+    );
+
+
     /********************************************************
      * 초기 실행
      ********************************************************/
@@ -1474,6 +1569,8 @@
       );
 
       await autoLoadRouteFromUrl();
+
+      updateMobileScrollbar();
     }
 
 
@@ -1749,6 +1846,10 @@
 
       updateFilteredSummary(
         state.filteredNotams
+      );
+
+      window.requestAnimationFrame(
+        updateMobileScrollbar
       );
     }
 
@@ -2432,7 +2533,8 @@
             function (schedule) {
               return buildScheduleItemHtml(
                 schedule,
-                other
+                other,
+                notam
               );
             }
           )
@@ -2561,8 +2663,31 @@
 
     function buildScheduleItemHtml(
       schedule,
-      other
+      other,
+      notam
     ) {
+      const highlight = getScheduleTimeHighlightFlags(schedule, notam);
+
+      const departureLabel = escapeHtml(
+        schedule.departureUtcLabel || "-"
+      );
+
+      const arrivalLabel = escapeHtml(
+        schedule.arrivalUtcLabel || "-"
+      );
+
+      const departureHtml = highlight.departure
+        ? '<span class="schedule-impact-time">' +
+            departureLabel +
+          "</span>"
+        : departureLabel;
+
+      const arrivalHtml = highlight.arrival
+        ? '<span class="schedule-impact-time">' +
+            arrivalLabel +
+          "</span>"
+        : arrivalLabel;
+
       return (
         '<div class="schedule-item">' +
 
@@ -2583,20 +2708,117 @@
           '<div class="schedule-time">' +
 
             "ETD " +
-            escapeHtml(
-              schedule.departureUtcLabel
-            ) +
+            departureHtml +
             "<br>" +
 
             "ETA " +
-            escapeHtml(
-              schedule.arrivalUtcLabel
-            ) +
+            arrivalHtml +
 
           "</div>" +
 
         "</div>"
       );
+    }
+
+
+    function getScheduleTimeHighlightFlags(schedule, notam) {
+      const departure = firstUtcDate([
+        schedule.departureUtc,
+        schedule.departureDateTimeUtc,
+        schedule.departureDatetimeUtc,
+        schedule.departureTimeUtc,
+        schedule.departureDateTime,
+        schedule.departureDatetime,
+        schedule.departureTime,
+        schedule.etdUtc,
+        schedule.etdDateTimeUtc,
+        schedule.etdDateTime,
+        schedule.etd,
+        schedule.startUtc,
+        schedule.startDateTimeUtc,
+        schedule.startDateTime,
+        schedule.departureUtcLabel,
+        schedule.departureLabel,
+        schedule.etdUtcLabel,
+        schedule.etdLabel
+      ]);
+
+      const arrival = firstUtcDate([
+        schedule.arrivalUtc,
+        schedule.arrivalDateTimeUtc,
+        schedule.arrivalDatetimeUtc,
+        schedule.arrivalTimeUtc,
+        schedule.arrivalDateTime,
+        schedule.arrivalDatetime,
+        schedule.arrivalTime,
+        schedule.etaUtc,
+        schedule.etaDateTimeUtc,
+        schedule.etaDateTime,
+        schedule.eta,
+        schedule.endUtc,
+        schedule.endDateTimeUtc,
+        schedule.endDateTime,
+        schedule.arrivalUtcLabel,
+        schedule.arrivalLabel,
+        schedule.etaUtcLabel,
+        schedule.etaLabel
+      ]);
+
+      return {
+        departure: schedulePointHitsNotamD(notam, departure),
+        arrival: schedulePointHitsNotamD(notam, arrival)
+      };
+    }
+
+    function schedulePointHitsNotamD(notam, pointDate) {
+      if (!pointDate || !Number.isFinite(pointDate.getTime())) return false;
+
+      const dText = String(
+        notam && (notam.dSchedule || notam.dScheduleText)
+          ? (notam.dSchedule || notam.dScheduleText)
+          : ""
+      ).trim();
+
+      if (!dText) return false;
+
+      const marginMs = 30 * 60 * 1000;
+      const windows = [{
+        start: pointDate.getTime() - marginMs,
+        end: pointDate.getTime() + marginMs
+      }];
+
+      const notamStart = parseUtcDate(notam.startUtc);
+      const notamEnd = parseUtcDate(notam.endUtc);
+
+      let match;
+
+      const fullDateRegex = /\b(\d{8}|\d{6})\s+(\d{4})\s*-\s*(\d{4})\b/g;
+      while ((match = fullDateRegex.exec(dText)) !== null) {
+        const date = parseCompactUtcDate(match[1]);
+        const range = date ? makeUtcRange(date, match[2], match[3]) : null;
+        if (range && windows.some(function (w) {
+          return rangesOverlap(range.start, range.end, w.start, w.end);
+        })) return true;
+      }
+
+      const dayRegex = /\b(\d{2})\s+(\d{4})\s*-\s*(\d{4})\b/g;
+      while ((match = dayRegex.exec(dText)) !== null) {
+        if (!notamStart) continue;
+        const date = resolveUtcDay(notamStart, Number(match[1]));
+        const range = makeUtcRange(date, match[2], match[3]);
+        if (range && windows.some(function (w) {
+          return rangesOverlap(range.start, range.end, w.start, w.end);
+        })) return true;
+      }
+
+      const timeRegex = /\b(\d{4})\s*-\s*(\d{4})\b/g;
+      while ((match = timeRegex.exec(dText)) !== null) {
+        if (recurringRangeHitsFlight(
+          match[1], match[2], notamStart, notamEnd, windows
+        )) return true;
+      }
+
+      return false;
     }
 
 
@@ -4347,6 +4569,115 @@
 
       refreshButton.disabled =
         false;
+    }
+
+
+    /********************************************************
+     * 모바일 커스텀 스크롤바
+     ********************************************************/
+
+    function updateMobileScrollbar() {
+      if (
+        !mobileScrollbarTrack ||
+        !mobileScrollbarThumb
+      ) {
+        return;
+      }
+
+      if (
+        !window.matchMedia(
+          "(max-width: 800px)"
+        ).matches
+      ) {
+        mobileScrollbarTrack.classList.add(
+          "not-scrollable"
+        );
+        return;
+      }
+
+      const documentElement =
+        document.documentElement;
+
+      const body =
+        document.body;
+
+      const scrollHeight =
+        Math.max(
+          documentElement.scrollHeight,
+          body ? body.scrollHeight : 0
+        );
+
+      const viewportHeight =
+        window.innerHeight ||
+        documentElement.clientHeight ||
+        1;
+
+      const maxScroll =
+        Math.max(
+          0,
+          scrollHeight - viewportHeight
+        );
+
+      if (maxScroll <= 1) {
+        mobileScrollbarTrack.classList.add(
+          "not-scrollable"
+        );
+        return;
+      }
+
+      mobileScrollbarTrack.classList.remove(
+        "not-scrollable"
+      );
+
+      const trackHeight =
+        mobileScrollbarTrack.clientHeight;
+
+      const minimumThumbHeight =
+        52;
+
+      const calculatedThumbHeight =
+        trackHeight *
+        (viewportHeight / scrollHeight);
+
+      const thumbHeight =
+        Math.max(
+          minimumThumbHeight,
+          Math.min(
+            trackHeight,
+            calculatedThumbHeight
+          )
+        );
+
+      const currentScroll =
+        Math.max(
+          0,
+          window.scrollY ||
+          documentElement.scrollTop ||
+          0
+        );
+
+      const movableDistance =
+        Math.max(
+          0,
+          trackHeight - thumbHeight
+        );
+
+      const thumbTop =
+        maxScroll > 0
+          ? movableDistance *
+            Math.min(
+              1,
+              currentScroll / maxScroll
+            )
+          : 0;
+
+      mobileScrollbarThumb.style.height =
+        thumbHeight + "px";
+
+      mobileScrollbarThumb.style.transform =
+        "translateY(" +
+        thumbTop +
+        "px)";
     }
 
 
