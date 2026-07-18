@@ -1909,8 +1909,9 @@
           : (Array.isArray(notam.schedules) ? notam.schedules : []);
 
       const flightWindows = schedules
-        .map(getFlightWindow)
-        .filter(Boolean);
+        .reduce(function (allWindows, schedule) {
+          return allWindows.concat(getScheduleImpactWindows(schedule));
+        }, []);
 
       const notamStart = parseUtcDate(notam.startUtc);
       const notamEnd = parseUtcDate(notam.endUtc);
@@ -1962,25 +1963,95 @@
       return "D) " + highlightImpactRanges(dText, mergeImpactRanges(ranges));
     }
 
-    function getFlightWindow(schedule) {
-      const start = firstUtcDate([
+    function getScheduleImpactWindows(schedule) {
+      /*
+       * 백엔드 버전에 따라 스케줄 필드명이 달라도 처리한다.
+       * ISO 원본값을 우선하고, 화면 표시용 Label 값도 fallback으로 사용한다.
+       */
+      const departure = firstUtcDate([
         schedule.departureUtc,
+        schedule.departureDateTimeUtc,
+        schedule.departureDatetimeUtc,
         schedule.departureTimeUtc,
+        schedule.departureDateTime,
+        schedule.departureDatetime,
+        schedule.departureTime,
         schedule.etdUtc,
+        schedule.etdDateTimeUtc,
+        schedule.etdDateTime,
+        schedule.etd,
         schedule.startUtc,
-        schedule.departureUtcLabel
-      ]);
-      const end = firstUtcDate([
-        schedule.arrivalUtc,
-        schedule.arrivalTimeUtc,
-        schedule.etaUtc,
-        schedule.endUtc,
-        schedule.arrivalUtcLabel
+        schedule.startDateTimeUtc,
+        schedule.startDateTime,
+        schedule.departureUtcLabel,
+        schedule.departureLabel,
+        schedule.etdUtcLabel,
+        schedule.etdLabel
       ]);
 
-      return start && end
-        ? { start: start.getTime(), end: end.getTime() }
-        : null;
+      const arrival = firstUtcDate([
+        schedule.arrivalUtc,
+        schedule.arrivalDateTimeUtc,
+        schedule.arrivalDatetimeUtc,
+        schedule.arrivalTimeUtc,
+        schedule.arrivalDateTime,
+        schedule.arrivalDatetime,
+        schedule.arrivalTime,
+        schedule.etaUtc,
+        schedule.etaDateTimeUtc,
+        schedule.etaDateTime,
+        schedule.eta,
+        schedule.endUtc,
+        schedule.endDateTimeUtc,
+        schedule.endDateTime,
+        schedule.arrivalUtcLabel,
+        schedule.arrivalLabel,
+        schedule.etaUtcLabel,
+        schedule.etaLabel
+      ]);
+
+      const direction = String(schedule.direction || "").toUpperCase();
+      const impactMarginMs = 60 * 60 * 1000;
+      const windows = [];
+
+      function addPointWindow(date) {
+        if (!date || !Number.isFinite(date.getTime())) return;
+        windows.push({
+          start: date.getTime() - impactMarginMs,
+          end: date.getTime() + impactMarginMs
+        });
+      }
+
+      /*
+       * 기존 영향 NTM 분류 기준과 동일하게 처리한다.
+       * 국제선 출발: ETD 전후 1시간
+       * 국제선 도착: ETA 전후 1시간
+       * 국내선: ETD와 ETA 각각 전후 1시간
+       */
+      if (
+        direction === "KOREA_DEPARTURE" ||
+        direction === "INTERNATIONAL_DEPARTURE" ||
+        direction === "DEPARTURE" ||
+        direction === "DEP"
+      ) {
+        addPointWindow(departure);
+      } else if (
+        direction === "KOREA_ARRIVAL" ||
+        direction === "INTERNATIONAL_ARRIVAL" ||
+        direction === "ARRIVAL" ||
+        direction === "ARR"
+      ) {
+        addPointWindow(arrival);
+      } else if (direction === "DOMESTIC") {
+        addPointWindow(departure);
+        addPointWindow(arrival);
+      } else {
+        /* 방향 필드가 없거나 예상 밖인 경우 누락 방지 */
+        addPointWindow(departure);
+        addPointWindow(arrival);
+      }
+
+      return windows;
     }
 
     function firstUtcDate(values) {
@@ -1993,26 +2064,116 @@
 
     function parseUtcDate(value) {
       if (!value) return null;
+
       if (value instanceof Date) {
         return Number.isFinite(value.getTime()) ? value : null;
       }
 
-      const raw = String(value).trim();
+      if (typeof value === "number" && Number.isFinite(value)) {
+        const numericDate = new Date(
+          value < 100000000000 ? value * 1000 : value
+        );
+        return Number.isFinite(numericDate.getTime()) ? numericDate : null;
+      }
+
+      let raw = String(value).trim();
+      if (!raw) return null;
+
+      /* 불필요한 괄호와 요일, 연속 공백 정리 */
+      raw = raw
+        .replace(/[()]/g, " ")
+        .replace(/\b(?:MON|TUE|WED|THU|FRI|SAT|SUN)\b/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      /* 브라우저가 직접 해석 가능한 ISO/RFC 형식 */
       let d = new Date(raw);
       if (Number.isFinite(d.getTime())) return d;
 
-      const match = raw.match(
-        /^(\d{4})[-/.](\d{2})[-/.](\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?\s*(?:UTC|Z)?$/i
+      const monthMap = {
+        JAN: 0, FEB: 1, MAR: 2, APR: 3,
+        MAY: 4, JUN: 5, JUL: 6, AUG: 7,
+        SEP: 8, OCT: 9, NOV: 10, DEC: 11
+      };
+
+      let match;
+
+      /* 2026-07-19 03:00 / 2026/07/19 0300Z / 2026.07.19 0300 UTC */
+      match = raw.match(
+        /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})[ T]+(\d{2}):?(\d{2})(?::?(\d{2}))?\s*(?:UTC|Z)?$/i
       );
+      if (match) {
+        return validUtcDate(
+          Number(match[1]), Number(match[2]), Number(match[3]),
+          Number(match[4]), Number(match[5]), Number(match[6] || 0)
+        );
+      }
 
-      if (!match) return null;
+      /* 19 JUL 2026 0300Z / 19-JUL-2026 03:00 UTC */
+      match = raw.match(
+        /^(\d{1,2})[-\s]([A-Z]{3})[-\s](\d{4})\s+(\d{2}):?(\d{2})(?::?(\d{2}))?\s*(?:UTC|Z)?$/i
+      );
+      if (match && monthMap[match[2].toUpperCase()] !== undefined) {
+        return validUtcDate(
+          Number(match[3]), monthMap[match[2].toUpperCase()] + 1,
+          Number(match[1]), Number(match[4]), Number(match[5]),
+          Number(match[6] || 0)
+        );
+      }
 
-      d = new Date(Date.UTC(
-        Number(match[1]), Number(match[2]) - 1, Number(match[3]),
-        Number(match[4]), Number(match[5]), Number(match[6] || 0)
+      /* JUL 19 2026 0300Z */
+      match = raw.match(
+        /^([A-Z]{3})\s+(\d{1,2})[,]?\s+(\d{4})\s+(\d{2}):?(\d{2})(?::?(\d{2}))?\s*(?:UTC|Z)?$/i
+      );
+      if (match && monthMap[match[1].toUpperCase()] !== undefined) {
+        return validUtcDate(
+          Number(match[3]), monthMap[match[1].toUpperCase()] + 1,
+          Number(match[2]), Number(match[4]), Number(match[5]),
+          Number(match[6] || 0)
+        );
+      }
+
+      /* 202607190300 / 20260719 0300 */
+      match = raw.match(
+        /^(\d{4})(\d{2})(\d{2})[ T]?(\d{2})(\d{2})(\d{2})?\s*(?:UTC|Z)?$/i
+      );
+      if (match) {
+        return validUtcDate(
+          Number(match[1]), Number(match[2]), Number(match[3]),
+          Number(match[4]), Number(match[5]), Number(match[6] || 0)
+        );
+      }
+
+      /* 2607190300 / 260719 0300 */
+      match = raw.match(
+        /^(\d{2})(\d{2})(\d{2})[ T]?(\d{2})(\d{2})(\d{2})?\s*(?:UTC|Z)?$/i
+      );
+      if (match) {
+        return validUtcDate(
+          2000 + Number(match[1]), Number(match[2]), Number(match[3]),
+          Number(match[4]), Number(match[5]), Number(match[6] || 0)
+        );
+      }
+
+      return null;
+    }
+
+    function validUtcDate(year, month, day, hour, minute, second) {
+      const d = new Date(Date.UTC(
+        year, month - 1, day, hour, minute, second || 0
       ));
 
-      return Number.isFinite(d.getTime()) ? d : null;
+      if (
+        d.getUTCFullYear() !== year ||
+        d.getUTCMonth() !== month - 1 ||
+        d.getUTCDate() !== day ||
+        d.getUTCHours() !== hour ||
+        d.getUTCMinutes() !== minute
+      ) {
+        return null;
+      }
+
+      return d;
     }
 
     function parseCompactUtcDate(text) {
