@@ -826,31 +826,52 @@
     }
 
     @media (max-width: 800px) {
+      html,
       body {
-        overflow: auto;
+        height: auto;
+        min-height: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      body {
+        position: static;
+        touch-action: pan-y;
       }
 
       .app {
+        width: 100%;
         height: auto;
         min-height: 100vh;
+        min-height: 100dvh;
+        display: block;
+        overflow: visible;
       }
 
       .layout {
-        grid-template-columns: 1fr;
-        grid-template-rows: auto 65vh;
+        display: block;
+        min-height: 0;
+        overflow: visible;
       }
 
       .sidebar {
         max-height: none;
+        min-height: 0;
         overflow: visible;
       }
 
+      /* 모바일에서는 NOTAM 목록 내부 스크롤을 없애고 페이지 전체가 스크롤되도록 함 */
       .notam-list {
-        max-height: 58vh;
+        max-height: none;
+        min-height: 0;
+        overflow: visible;
+        -webkit-overflow-scrolling: touch;
       }
 
       .map-wrap {
         min-height: 65vh;
+        height: 65vh;
       }
 
       .header {
@@ -860,6 +881,36 @@
       .route-status {
         width: 100%;
         margin-left: 0;
+      }
+
+      /* 항공기 / 운항 구분 / NOTAM 분류를 모바일에서도 한 줄로 배치 */
+      .controls {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 5px;
+        padding: 8px 7px;
+      }
+
+      .control-group,
+      .control-group:last-child {
+        min-width: 0;
+        grid-column: auto;
+      }
+
+      .control-group label {
+        margin-bottom: 3px;
+        font-size: 9px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .control-group select {
+        min-width: 0;
+        width: 100%;
+        height: 34px;
+        padding: 4px 20px 4px 6px;
+        font-size: 10px;
+        border-radius: 6px;
       }
     }
 
@@ -877,12 +928,25 @@
         grid-template-columns: repeat(2, 1fr);
       }
 
+      /* 작은 모바일에서도 3개 필터를 한 줄로 유지 */
       .controls {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 4px;
+        padding: 7px 6px;
       }
 
       .control-group:last-child {
         grid-column: auto;
+      }
+
+      .control-group label {
+        font-size: 8px;
+      }
+
+      .control-group select {
+        height: 32px;
+        padding: 3px 17px 3px 5px;
+        font-size: 9px;
       }
 
       .route-button {
