@@ -497,6 +497,16 @@
       font-weight: 800;
     }
 
+    /* 영향 NTM의 실제 영향시간 강조 */
+    .impact-time-highlight {
+      color: var(--red);
+      font-weight: 800;
+      text-decoration-line: underline;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 3px;
+      text-decoration-color: var(--red);
+    }
+
     .classification-other {
       color: var(--blue);
       font-weight: 800;
@@ -1885,6 +1895,265 @@
     }
 
 
+    function buildImpactTimeHtml(notam) {
+      const dText = String(
+        notam.dSchedule || notam.dScheduleText || ""
+      ).trim();
+
+      if (!dText) return "D) 없음";
+      if (isOtherNotam(notam)) return "D) " + escapeHtml(dText);
+
+      const schedules = Array.isArray(notam.matchedSchedules) &&
+        notam.matchedSchedules.length
+          ? notam.matchedSchedules
+          : (Array.isArray(notam.schedules) ? notam.schedules : []);
+
+      const flightWindows = schedules
+        .map(getFlightWindow)
+        .filter(Boolean);
+
+      const notamStart = parseUtcDate(notam.startUtc);
+      const notamEnd = parseUtcDate(notam.endUtc);
+      const ranges = [];
+
+      /* YYYYMMDD HHMM-HHMM / YYMMDD HHMM-HHMM */
+      collectMatchedRanges(
+        dText,
+        /\b(\d{8}|\d{6})\s+(\d{4})\s*-\s*(\d{4})\b/g,
+        function (m) {
+          const date = parseCompactUtcDate(m[1]);
+          return date ? makeUtcRange(date, m[2], m[3]) : null;
+        },
+        flightWindows,
+        ranges
+      );
+
+      /* DD HHMM-HHMM */
+      collectMatchedRanges(
+        dText,
+        /\b(\d{2})\s+(\d{4})\s*-\s*(\d{4})\b/g,
+        function (m) {
+          if (!notamStart) return null;
+          const date = resolveUtcDay(notamStart, Number(m[1]));
+          return makeUtcRange(date, m[2], m[3]);
+        },
+        flightWindows,
+        ranges
+      );
+
+      /* 날짜 없이 HHMM-HHMM만 반복되는 D) */
+      const timeRegex = /\b(\d{4})\s*-\s*(\d{4})\b/g;
+      let m;
+
+      while ((m = timeRegex.exec(dText)) !== null) {
+        if (ranges.some(function (r) {
+          return m.index >= r.start && timeRegex.lastIndex <= r.end;
+        })) continue;
+
+        if (recurringRangeHitsFlight(
+          m[1], m[2], notamStart, notamEnd, flightWindows
+        )) {
+          ranges.push({ start: m.index, end: timeRegex.lastIndex });
+        }
+      }
+
+      if (!ranges.length) return "D) " + escapeHtml(dText);
+
+      return "D) " + highlightImpactRanges(dText, mergeImpactRanges(ranges));
+    }
+
+    function getFlightWindow(schedule) {
+      const start = firstUtcDate([
+        schedule.departureUtc,
+        schedule.departureTimeUtc,
+        schedule.etdUtc,
+        schedule.startUtc,
+        schedule.departureUtcLabel
+      ]);
+      const end = firstUtcDate([
+        schedule.arrivalUtc,
+        schedule.arrivalTimeUtc,
+        schedule.etaUtc,
+        schedule.endUtc,
+        schedule.arrivalUtcLabel
+      ]);
+
+      return start && end
+        ? { start: start.getTime(), end: end.getTime() }
+        : null;
+    }
+
+    function firstUtcDate(values) {
+      for (let i = 0; i < values.length; i += 1) {
+        const d = parseUtcDate(values[i]);
+        if (d) return d;
+      }
+      return null;
+    }
+
+    function parseUtcDate(value) {
+      if (!value) return null;
+      if (value instanceof Date) {
+        return Number.isFinite(value.getTime()) ? value : null;
+      }
+
+      const raw = String(value).trim();
+      let d = new Date(raw);
+      if (Number.isFinite(d.getTime())) return d;
+
+      const match = raw.match(
+        /^(\d{4})[-/.](\d{2})[-/.](\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?\s*(?:UTC|Z)?$/i
+      );
+
+      if (!match) return null;
+
+      d = new Date(Date.UTC(
+        Number(match[1]), Number(match[2]) - 1, Number(match[3]),
+        Number(match[4]), Number(match[5]), Number(match[6] || 0)
+      ));
+
+      return Number.isFinite(d.getTime()) ? d : null;
+    }
+
+    function parseCompactUtcDate(text) {
+      text = String(text || "");
+      let year, month, day;
+
+      if (text.length === 8) {
+        year = Number(text.slice(0, 4));
+        month = Number(text.slice(4, 6));
+        day = Number(text.slice(6, 8));
+      } else if (text.length === 6) {
+        year = 2000 + Number(text.slice(0, 2));
+        month = Number(text.slice(2, 4));
+        day = Number(text.slice(4, 6));
+      } else {
+        return null;
+      }
+
+      return new Date(Date.UTC(year, month - 1, day));
+    }
+
+    function resolveUtcDay(reference, day) {
+      let d = new Date(Date.UTC(
+        reference.getUTCFullYear(), reference.getUTCMonth(), day
+      ));
+
+      if (d.getTime() < reference.getTime() - 16 * 86400000) {
+        d = new Date(Date.UTC(
+          reference.getUTCFullYear(), reference.getUTCMonth() + 1, day
+        ));
+      }
+      return d;
+    }
+
+    function hhmmMinutes(value) {
+      const text = String(value || "");
+      if (!/^\d{4}$/.test(text)) return null;
+
+      const hour = Number(text.slice(0, 2));
+      const minute = Number(text.slice(2, 4));
+      if (hour > 23 || minute > 59) return null;
+
+      return hour * 60 + minute;
+    }
+
+    function makeUtcRange(date, startHhmm, endHhmm) {
+      const startMinutes = hhmmMinutes(startHhmm);
+      const endMinutes = hhmmMinutes(endHhmm);
+      if (startMinutes === null || endMinutes === null) return null;
+
+      const day = Date.UTC(
+        date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()
+      );
+      const start = day + startMinutes * 60000;
+      let end = day + endMinutes * 60000;
+      if (end <= start) end += 86400000;
+
+      return { start: start, end: end };
+    }
+
+    function collectMatchedRanges(text, regex, makeRange, flights, output) {
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        const range = makeRange(match);
+        if (range && flights.some(function (flight) {
+          return rangesOverlap(range.start, range.end, flight.start, flight.end);
+        })) {
+          output.push({ start: match.index, end: regex.lastIndex });
+        }
+      }
+    }
+
+    function recurringRangeHitsFlight(
+      startHhmm, endHhmm, notamStart, notamEnd, flights
+    ) {
+      const startMinutes = hhmmMinutes(startHhmm);
+      const endMinutes = hhmmMinutes(endHhmm);
+      if (startMinutes === null || endMinutes === null) return false;
+
+      return flights.some(function (flight) {
+        const firstDay = new Date(flight.start);
+        firstDay.setUTCHours(0, 0, 0, 0);
+        const lastDay = new Date(flight.end);
+        lastDay.setUTCHours(0, 0, 0, 0);
+
+        for (
+          let day = firstDay.getTime() - 86400000;
+          day <= lastDay.getTime();
+          day += 86400000
+        ) {
+          const start = day + startMinutes * 60000;
+          let end = day + endMinutes * 60000;
+          if (end <= start) end += 86400000;
+
+          if (notamStart && end < notamStart.getTime()) continue;
+          if (notamEnd && start > notamEnd.getTime()) continue;
+          if (rangesOverlap(start, end, flight.start, flight.end)) return true;
+        }
+        return false;
+      });
+    }
+
+    function rangesOverlap(startA, endA, startB, endB) {
+      return startA <= endB && endA >= startB;
+    }
+
+    function mergeImpactRanges(ranges) {
+      const sorted = ranges.slice().sort(function (a, b) {
+        return a.start - b.start;
+      });
+      const merged = [];
+
+      sorted.forEach(function (range) {
+        const last = merged[merged.length - 1];
+        if (last && range.start <= last.end) {
+          last.end = Math.max(last.end, range.end);
+        } else {
+          merged.push({ start: range.start, end: range.end });
+        }
+      });
+
+      return merged;
+    }
+
+    function highlightImpactRanges(text, ranges) {
+      let html = "";
+      let cursor = 0;
+
+      ranges.forEach(function (range) {
+        html += escapeHtml(text.slice(cursor, range.start));
+        html += '<span class="impact-time-highlight">' +
+          escapeHtml(text.slice(range.start, range.end)) +
+          "</span>";
+        cursor = range.end;
+      });
+
+      html += escapeHtml(text.slice(cursor));
+      return html;
+    }
+
+
     function buildNotamCardHtml(
       notam
     ) {
@@ -2052,21 +2321,9 @@
               ) +
             "</div>" +
 
-            (
-              (notam.dSchedule || notam.dScheduleText)
-                ? (
-                    "<div><strong>영향시간:</strong> D) " +
-                      escapeHtml(
-                        (notam.dSchedule || notam.dScheduleText)
-                      ) +
-                    "</div>"
-                  )
-                : (
-                    "<div><strong>영향시간:</strong> " +
-                      "D) 없음" +
-                    "</div>"
-                  )
-            ) +
+            "<div><strong>영향시간:</strong> " +
+              buildImpactTimeHtml(notam) +
+            "</div>" +
 
           "</div>" +
 
@@ -2517,10 +2774,8 @@
         (
           (notam.dSchedule || notam.dScheduleText)
             ? (
-                '<div class="popup-row"><strong>영향시간:</strong> D) ' +
-                  escapeHtml(
-                    (notam.dSchedule || notam.dScheduleText)
-                  ) +
+                '<div class="popup-row"><strong>영향시간:</strong> ' +
+                  buildImpactTimeHtml(notam) +
                 "</div>"
               )
             : ""
