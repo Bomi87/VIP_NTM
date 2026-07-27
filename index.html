@@ -3684,9 +3684,6 @@
         false
       );
 
-      actualRouteSelect.value =
-        fileName;
-
       state.routeLoading.add(
         routeKey
       );
@@ -4371,25 +4368,45 @@
           ? rawLineSegments
           : rawTrackSegments;
 
-      let routeReferenceLng = 0;
+      /*
+       * KML의 첫 좌표가 앵커리지 쪽에서 시작하더라도
+       * 현재 보고 있는 지도 세계를 기준으로 경도를 펼친다.
+       * 따라서 김포-앵커리지 Route가 지도 왼쪽의 다른 세계에
+       * 표시되지 않고 현재 지도 영역에 표시된다.
+       */
+      let routeReferenceLng =
+        Number.isFinite(
+          Number(
+            map.getCenter().lng
+          )
+        )
+          ? Number(
+              map.getCenter().lng
+            )
+          : 127.8;
 
       if (routeSegments.length > 0) {
-        const firstCoords = routeSegments[0].coords;
-        const initialReference = wrapLon180(
-          firstCoords[0][1]
-        );
-        const firstUnwrapped = unwrapCoordSequence(
-          firstCoords,
-          initialReference
-        );
+        const firstCoords =
+          routeSegments[0].coords;
 
-        routeReferenceLng = averageNumbers(
-          firstUnwrapped.map(
-            function (point) {
-              return Number(point[1]);
-            }
-          )
-        );
+        const firstUnwrapped =
+          unwrapCoordSequence(
+            firstCoords,
+            routeReferenceLng
+          );
+
+        if (firstUnwrapped.length > 0) {
+          routeReferenceLng =
+            averageNumbers(
+              firstUnwrapped.map(
+                function (point) {
+                  return Number(
+                    point[1]
+                  );
+                }
+              )
+            );
+        }
       }
 
       function drawRouteSegment(
