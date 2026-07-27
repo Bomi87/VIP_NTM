@@ -234,6 +234,31 @@
       background: #f9fafb;
     }
 
+    .actual-route-select {
+      min-width: 190px;
+      max-width: 280px;
+      padding: 8px 32px 8px 12px;
+
+      border: 1px solid #d0d5dd;
+      border-radius: 8px;
+
+      background: #ffffff;
+      color: #344054;
+
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .actual-route-select:hover {
+      background: #f9fafb;
+    }
+
+    .actual-route-select:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+
     .route-color {
       width: 11px;
       height: 11px;
@@ -964,6 +989,12 @@
         flex: 1;
         justify-content: center;
       }
+
+      .actual-route-select {
+        flex: 1 1 100%;
+        width: 100%;
+        max-width: none;
+      }
     }
 
 
@@ -1065,6 +1096,25 @@
         <span class="route-color hl8372"></span>
         HL8372 Route
       </button>
+
+      <select
+        id="actualRouteSelect"
+        class="actual-route-select"
+        aria-label="실제경로 선택"
+      >
+        <option value="">실제경로</option>
+        <option value="AGAVO-GMP RWY32.kml">AGAVO-GMP RWY32</option>
+        <option value="CJU-GMP RWY14.kml">CJU-GMP RWY14</option>
+        <option value="CJU-GMP RWY32.kml">CJU-GMP RWY32</option>
+        <option value="GMP-AGAVO RWY14.kml">GMP-AGAVO RWY14</option>
+        <option value="GMP-AGAVO RWY32.kml">GMP-AGAVO RWY32</option>
+        <option value="GMP-CJU RWY14.kml">GMP-CJU RWY14</option>
+        <option value="GMP-CJU RWY32.kml">GMP-CJU RWY32</option>
+        <option value="GMP-KAEB방향 RWY14.kml">GMP-KAEB방향 RWY14</option>
+        <option value="GMP-KAEB방향(RWY32).kml">GMP-KAEB방향(RWY32)</option>
+        <option value="SAPRA-GMP RWY14.kml">SAPRA-GMP RWY14</option>
+        <option value="SAPRA-GMP(RWY32).kml">SAPRA-GMP(RWY32)</option>
+      </select>
 
       <button
         id="clearRouteButton"
@@ -1281,6 +1331,20 @@
     const ROUTE_BASE_URL =
       "https://bomi87.github.io/FLIGHT_MAP/live/";
 
+    /*
+     * 이 저장소 루트에 업로드한 실제 운항 KML 경로
+     */
+    const ACTUAL_ROUTE_BASE_URL =
+      "https://bomi87.github.io/VIP_NTM/";
+
+    const ACTUAL_ROUTE_STYLE = {
+      color:
+        "#a855f7",
+
+      outlineColor:
+        "#581c87"
+    };
+
     const ROUTE_CONFIG = {
       HL8080: {
         aircraft:
@@ -1480,6 +1544,11 @@
         "clearRouteButton"
       );
 
+    const actualRouteSelect =
+      document.getElementById(
+        "actualRouteSelect"
+      );
+
 
     const mobileScrollbarTrack =
       document.getElementById(
@@ -1534,6 +1603,24 @@
       function () {
         toggleRoute(
           "HL8372"
+        );
+      }
+    );
+
+    actualRouteSelect.addEventListener(
+      "change",
+      function () {
+        const fileName =
+          actualRouteSelect.value;
+
+        if (!fileName) {
+          removeActualRoutes();
+          return;
+        }
+
+        loadActualRoute(
+          fileName,
+          true
         );
       }
     );
@@ -3571,6 +3658,258 @@
     }
 
 
+    async function loadActualRoute(
+      fileName,
+      zoomToRoute
+    ) {
+      const routeKey =
+        "ACTUAL:" +
+        fileName;
+
+      if (
+        state.routeLoading.has(
+          routeKey
+        )
+      ) {
+        return;
+      }
+
+      /*
+       * 실제경로 드롭다운은 한 번에 하나만 표시한다.
+       * HL8080 / HL8372 Route는 그대로 유지한다.
+       */
+      removeActualRoutes(
+        false
+      );
+
+      state.routeLoading.add(
+        routeKey
+      );
+
+      actualRouteSelect.disabled =
+        true;
+
+      routeStatus.textContent =
+        fileName.replace(/\.kml$/i, "") +
+        " 실제경로 불러오는 중...";
+
+      try {
+        const url =
+          ACTUAL_ROUTE_BASE_URL +
+          encodeURIComponent(
+            fileName
+          ) +
+          "?v=" +
+          Date.now();
+
+        const response =
+          await fetch(
+            url,
+            {
+              method:
+                "GET",
+
+              cache:
+                "no-store"
+            }
+          );
+
+        if (!response.ok) {
+          throw new Error(
+            fileName +
+            " KML 호출 실패: HTTP " +
+            response.status
+          );
+        }
+
+        const displayName =
+          fileName.replace(
+            /\.kml$/i,
+            ""
+          );
+
+        const config = {
+          aircraft:
+            displayName,
+
+          color:
+            ACTUAL_ROUTE_STYLE.color,
+
+          outlineColor:
+            ACTUAL_ROUTE_STYLE.outlineColor
+        };
+
+        const kmlText =
+          await response.text();
+
+        const routeResult =
+          parseAndDrawKmlRoute(
+            kmlText,
+            config
+          );
+
+        if (
+          routeResult.layers.length === 0
+        ) {
+          throw new Error(
+            displayName +
+            " KML에서 표시 가능한 경로를 찾지 못했습니다."
+          );
+        }
+
+        routeResult.layers.forEach(
+          function (layer) {
+            layer.addTo(
+              routeLayerGroup
+            );
+          }
+        );
+
+        routeResult.displayName =
+          displayName;
+
+        routeResult.isActualRoute =
+          true;
+
+        state.routeLayers.set(
+          routeKey,
+          routeResult
+        );
+
+        state.routeReferenceLng =
+          Number.isFinite(
+            Number(
+              routeResult.referenceLng
+            )
+          )
+            ? Number(
+                routeResult.referenceLng
+              )
+            : state.routeReferenceLng;
+
+        renderNotamMap(
+          state.filteredNotams
+        );
+
+        routeStatus.textContent =
+          displayName +
+          " 실제경로 표시 완료 · " +
+          routeResult.pointCount +
+          "개 좌표";
+
+        if (
+          zoomToRoute &&
+          routeResult.bounds &&
+          routeResult.bounds.isValid()
+        ) {
+          map.fitBounds(
+            routeResult.bounds,
+            {
+              padding:
+                [
+                  35,
+                  35
+                ],
+
+              maxZoom:
+                10
+            }
+          );
+        }
+
+      } catch (error) {
+        console.error(
+          error
+        );
+
+        actualRouteSelect.value =
+          "";
+
+        routeStatus.textContent =
+          getErrorMessage(
+            error
+          );
+
+        alert(
+          getErrorMessage(
+            error
+          )
+        );
+
+      } finally {
+        state.routeLoading.delete(
+          routeKey
+        );
+
+        actualRouteSelect.disabled =
+          false;
+      }
+    }
+
+
+    function removeActualRoutes(
+      updateStatus = true
+    ) {
+      Array.from(
+        state.routeLayers.entries()
+      ).forEach(
+        function (entry) {
+          const routeKey =
+            entry[0];
+
+          const routeResult =
+            entry[1];
+
+          if (
+            !String(routeKey).startsWith(
+              "ACTUAL:"
+            )
+          ) {
+            return;
+          }
+
+          routeResult.layers.forEach(
+            function (layer) {
+              routeLayerGroup.removeLayer(
+                layer
+              );
+            }
+          );
+
+          state.routeLayers.delete(
+            routeKey
+          );
+        }
+      );
+
+      actualRouteSelect.value =
+        "";
+
+      const remainingRoute =
+        state.routeLayers.values().next().value;
+
+      state.routeReferenceLng =
+        remainingRoute &&
+        Number.isFinite(
+          Number(
+            remainingRoute.referenceLng
+          )
+        )
+          ? Number(
+              remainingRoute.referenceLng
+            )
+          : null;
+
+      renderNotamMap(
+        state.filteredNotams
+      );
+
+      if (updateStatus) {
+        updateRouteStatusText();
+      }
+    }
+
+
     function removeRoute(
       aircraft
     ) {
@@ -3616,7 +3955,14 @@
     function clearAllRoutes() {
       routeLayerGroup.clearLayers();
       state.routeLayers.clear();
+      state.routeLoading.clear();
       state.routeReferenceLng = null;
+
+      actualRouteSelect.value =
+        "";
+
+      actualRouteSelect.disabled =
+        false;
 
       renderNotamMap(
         state.filteredNotams
@@ -3625,7 +3971,7 @@
       updateRouteButtonState();
 
       routeStatus.textContent =
-        "모든 항공기 Route를 삭제했습니다.";
+        "HL8080, HL8372 및 실제경로를 모두 삭제했습니다.";
     }
 
 
@@ -3694,8 +4040,31 @@
         return;
       }
 
+      const activeRouteNames =
+        activeRoutes.map(
+          function (routeKey) {
+            const routeResult =
+              state.routeLayers.get(
+                routeKey
+              );
+
+            return (
+              routeResult &&
+              routeResult.displayName
+            )
+              ? routeResult.displayName
+              : String(routeKey).replace(
+                  /^ACTUAL:/,
+                  ""
+                ).replace(
+                  /\.kml$/i,
+                  ""
+                );
+          }
+        );
+
       routeStatus.textContent =
-        activeRoutes.join(
+        activeRouteNames.join(
           ", "
         ) +
         " Route 표시 중";
