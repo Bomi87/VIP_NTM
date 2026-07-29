@@ -3681,6 +3681,10 @@
         false
       );
 
+      /* removeActualRoutes()에서 초기화된 드롭다운 선택값 복원 */
+      actualRouteSelect.value =
+        fileName;
+
       state.routeLoading.add(
         routeKey
       );
