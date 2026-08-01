@@ -623,6 +623,12 @@
       text-decoration-color: var(--red);
     }
 
+    /* 운항시각 ±1시간 영향이지만 ±30분 직접 영향은 아닌 경우 */
+    .schedule-impact-time.orange {
+      color: var(--orange);
+      text-decoration-color: var(--orange);
+    }
+
     .classification-other {
       color: var(--blue);
       font-weight: 800;
@@ -2995,15 +3001,15 @@
       );
 
       const departureHtml = highlight.departure
-        ? '<span class="schedule-impact-time">' +
-            departureLabel +
-          "</span>"
+        ? '<span class="schedule-impact-time' +
+            (highlight.departure === "orange" ? " orange" : "") +
+            '">' + departureLabel + "</span>"
         : departureLabel;
 
       const arrivalHtml = highlight.arrival
-        ? '<span class="schedule-impact-time">' +
-            arrivalLabel +
-          "</span>"
+        ? '<span class="schedule-impact-time' +
+            (highlight.arrival === "orange" ? " orange" : "") +
+            '">' + arrivalLabel + "</span>"
         : arrivalLabel;
 
       return (
@@ -3083,13 +3089,43 @@
       ]);
 
       return {
-        departure: schedulePointHitsNotamD(notam, departure),
-        arrival: schedulePointHitsNotamD(notam, arrival)
+        departure: getSchedulePointImpactLevel(notam, departure),
+        arrival: getSchedulePointImpactLevel(notam, arrival)
       };
     }
 
-    function schedulePointHitsNotamD(notam, pointDate) {
-      if (!pointDate || !Number.isFinite(pointDate.getTime())) return false;
+
+    /*
+     * 반환값
+     * - "red"    : 운항시각 ±30분 직접 영향
+     * - "orange" : 운항시각 ±1시간 영향(±30분 직접 영향 제외)
+     * - null      : 시간 영향 없음
+     *
+     * D) 일정이 없는 경우에만, B)-C) 영향기간이 24시간 이내이면
+     * B)-C) 전체 유효시간을 기준으로 스케줄을 판정한다.
+     * D) 파싱 실패 또는 영향기간 24시간 초과 시에는 B)-C)로 확대하지 않는다.
+     */
+    function getSchedulePointImpactLevel(notam, pointDate) {
+      if (!pointDate || !Number.isFinite(pointDate.getTime())) return null;
+
+      if (schedulePointHitsNotamWindow(notam, pointDate, 30)) {
+        return "red";
+      }
+
+      if (schedulePointHitsNotamWindow(notam, pointDate, 60)) {
+        return "orange";
+      }
+
+      return null;
+    }
+
+
+    function schedulePointHitsNotamWindow(notam, pointDate, marginMinutes) {
+      const marginMs = marginMinutes * 60 * 1000;
+      const windows = [{
+        start: pointDate.getTime() - marginMs,
+        end: pointDate.getTime() + marginMs
+      }];
 
       const dText = String(
         notam && (notam.dSchedule || notam.dScheduleText)
@@ -3097,48 +3133,77 @@
           : ""
       ).trim();
 
-      if (!dText) return false;
-
-      const marginMs = 30 * 60 * 1000;
-      const windows = [{
-        start: pointDate.getTime() - marginMs,
-        end: pointDate.getTime() + marginMs
-      }];
-
       const notamStart = parseUtcDate(notam.startUtc);
       const notamEnd = parseUtcDate(notam.endUtc);
-
+      let parsedAnyDRange = false;
       let match;
 
-      const fullDateRegex = /\b(\d{8}|\d{6})\s+(\d{4})\s*-\s*(\d{4})\b/g;
-      while ((match = fullDateRegex.exec(dText)) !== null) {
-        const date = parseCompactUtcDate(match[1]);
-        const range = date ? makeUtcRange(date, match[2], match[3]) : null;
-        if (range && windows.some(function (w) {
-          return rangesOverlap(range.start, range.end, w.start, w.end);
-        })) return true;
+      if (dText) {
+        const fullDateRegex = /\b(\d{8}|\d{6})\s+(\d{4})\s*-\s*(\d{4})\b/g;
+        while ((match = fullDateRegex.exec(dText)) !== null) {
+          const date = parseCompactUtcDate(match[1]);
+          const range = date ? makeUtcRange(date, match[2], match[3]) : null;
+          if (!range) continue;
+          parsedAnyDRange = true;
+          if (windows.some(function (w) {
+            return rangesOverlap(range.start, range.end, w.start, w.end);
+          })) return true;
+        }
+
+        const dayRegex = /\b(\d{2})\s+(\d{4})\s*-\s*(\d{4})\b/g;
+        while ((match = dayRegex.exec(dText)) !== null) {
+          if (!notamStart) continue;
+          const date = resolveUtcDay(notamStart, Number(match[1]));
+          const range = makeUtcRange(date, match[2], match[3]);
+          if (!range) continue;
+          parsedAnyDRange = true;
+          if (windows.some(function (w) {
+            return rangesOverlap(range.start, range.end, w.start, w.end);
+          })) return true;
+        }
+
+        const timeRegex = /\b(\d{4})\s*-\s*(\d{4})\b/g;
+        while ((match = timeRegex.exec(dText)) !== null) {
+          parsedAnyDRange = true;
+          if (recurringRangeHitsFlight(
+            match[1], match[2], notamStart, notamEnd, windows
+          )) return true;
+        }
+
+        /* D) 구간을 정상 파싱했는데 일치하지 않았다면 B)-C)로 확대하지 않는다. */
+        if (parsedAnyDRange) return false;
       }
 
-      const dayRegex = /\b(\d{2})\s+(\d{4})\s*-\s*(\d{4})\b/g;
-      while ((match = dayRegex.exec(dText)) !== null) {
-        if (!notamStart) continue;
-        const date = resolveUtcDay(notamStart, Number(match[1]));
-        const range = makeUtcRange(date, match[2], match[3]);
-        if (range && windows.some(function (w) {
-          return rangesOverlap(range.start, range.end, w.start, w.end);
-        })) return true;
+      /*
+       * D) 일정이 실제로 없는 경우에만 B)-C) fallback 허용.
+       * 단, 전체 영향기간이 24시간 이내인 단기 NOTAM만 스케줄과 비교한다.
+       */
+      if (dText) return false;
+      if (!notamStart || !notamEnd) return false;
+
+      const notamDurationMs =
+        notamEnd.getTime() - notamStart.getTime();
+
+      const twentyFourHoursMs =
+        24 * 60 * 60 * 1000;
+
+      if (
+        !Number.isFinite(notamDurationMs) ||
+        notamDurationMs < 0 ||
+        notamDurationMs > twentyFourHoursMs
+      ) {
+        return false;
       }
 
-      const timeRegex = /\b(\d{4})\s*-\s*(\d{4})\b/g;
-      while ((match = timeRegex.exec(dText)) !== null) {
-        if (recurringRangeHitsFlight(
-          match[1], match[2], notamStart, notamEnd, windows
-        )) return true;
-      }
-
-      return false;
+      return windows.some(function (w) {
+        return rangesOverlap(
+          notamStart.getTime(),
+          notamEnd.getTime(),
+          w.start,
+          w.end
+        );
+      });
     }
-
 
     function buildScheduleModeBadge(
       mode
