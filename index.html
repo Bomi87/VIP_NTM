@@ -436,8 +436,46 @@
     }
 
     .notam-card.active {
-      outline: 2px solid var(--blue);
+      position: relative;
+      z-index: 2;
+
+      border-color: #2563eb;
+      outline: 3px solid #2563eb;
       outline-offset: 1px;
+
+      background: #eaf2ff;
+      box-shadow:
+        0 0 0 5px rgba(37, 99, 235, 0.18),
+        0 10px 24px rgba(37, 99, 235, 0.24);
+
+      transform: translateX(5px) scale(1.01);
+      transition:
+        transform 0.14s ease,
+        background 0.14s ease,
+        box-shadow 0.14s ease;
+    }
+
+    /* 선택 상태를 글자로도 명확히 표시 */
+    .notam-card.active::after {
+      content: "선택됨";
+
+      position: absolute;
+      top: -9px;
+      right: 10px;
+
+      padding: 4px 9px;
+
+      border: 2px solid #ffffff;
+      border-radius: 999px;
+
+      background: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 3px 9px rgba(37, 99, 235, 0.34);
+
+      font-size: 10px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0.02em;
     }
 
     /* 2순위: 운항시각 ±1시간 영향 NTM (단, ±30분 직접 영향 제외) */
@@ -457,6 +495,19 @@
 
     .notam-card.other-notam .notam-number {
       color: var(--blue);
+    }
+
+    /* 기존 분류색은 유지하면서 선택 카드만 더 진하게 표시 */
+    .notam-card.active.priority-orange {
+      background: #fff0cf;
+    }
+
+    .notam-card.active.other-notam {
+      background: #dceaff;
+    }
+
+    .notam-card.active:not(.priority-orange):not(.other-notam) {
+      background: #ffe8e6;
     }
 
     .notam-header {
