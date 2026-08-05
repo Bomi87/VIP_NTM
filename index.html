@@ -1135,6 +1135,22 @@
 </head>
 
 <body>
+  <div id="authScreen" style="
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+    background:#f3f5f8;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+    color:#17202a;
+    font-size:15px;
+    font-weight:700;
+  ">
+    승인 확인 중...
+  </div>
+
+  <div id="appRoot" style="display:none;">
   <div class="app">
 
     <header class="header">
@@ -1395,6 +1411,8 @@
     </div>
   </div>
 
+
+  </div>
 
   <script>
     "use strict";
@@ -1742,7 +1760,53 @@
      * 초기 실행
      ********************************************************/
 
-    initializeApp();
+    let VIP_NTM_APP_STARTED = false;
+
+    function showAuthorizedApp() {
+      const authScreen =
+        document.getElementById("authScreen");
+
+      const appRoot =
+        document.getElementById("appRoot");
+
+      if (authScreen) {
+        authScreen.style.display = "none";
+      }
+
+      if (appRoot) {
+        appRoot.style.display = "block";
+      }
+    }
+
+
+    function startVipNtmAfterAuth() {
+      if (VIP_NTM_APP_STARTED) {
+        return;
+      }
+
+      VIP_NTM_APP_STARTED = true;
+      showAuthorizedApp();
+
+      window.requestAnimationFrame(
+        function () {
+          map.invalidateSize();
+          initializeApp();
+        }
+      );
+    }
+
+
+    (function waitForPortalAuth() {
+      if (window.CURRENT_PORTAL_USER) {
+        startVipNtmAfterAuth();
+        return;
+      }
+
+      window.setTimeout(
+        waitForPortalAuth,
+        200
+      );
+    })();
 
 
     async function initializeApp() {
@@ -5450,5 +5514,8 @@
       );
     }
   </script>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://bomi87.github.io/SK-Aviation-portal/common-auth.js"></script>
 </body>
 </html>
