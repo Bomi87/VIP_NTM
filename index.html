@@ -613,7 +613,16 @@
     }
 
     /* 영향 NTM의 실제 영향시간 강조 */
-    .impact-time-highlight,
+    .impact-time-highlight {
+      color: var(--red);
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .impact-time-highlight.orange {
+      color: var(--orange);
+    }
+
     .schedule-impact-time {
       color: var(--red);
       font-weight: 800;
@@ -2151,8 +2160,8 @@
             );
 
           return Boolean(
-            flags.departure ||
-            flags.arrival
+            flags.departure === "red" ||
+            flags.arrival === "red"
           );
         }
       );
@@ -2452,16 +2461,50 @@
           ? notam.matchedSchedules
           : (Array.isArray(notam.schedules) ? notam.schedules : []);
 
-      const flightWindows = schedules
+      const redFlightWindows = schedules
         .reduce(function (allWindows, schedule) {
-          return allWindows.concat(getScheduleImpactWindows(schedule));
+          return allWindows.concat(getScheduleImpactWindows(schedule, 30));
+        }, []);
+
+      const oneHourFlightWindows = schedules
+        .reduce(function (allWindows, schedule) {
+          return allWindows.concat(getScheduleImpactWindows(schedule, 60));
         }, []);
 
       const notamStart = parseUtcDate(notam.startUtc);
       const notamEnd = parseUtcDate(notam.endUtc);
+      const redRanges = collectImpactTextRanges(
+        dText, notamStart, notamEnd, redFlightWindows
+      );
+      const oneHourRanges = collectImpactTextRanges(
+        dText, notamStart, notamEnd, oneHourFlightWindows
+      );
+
+      const orangeRanges = oneHourRanges.filter(function (range) {
+        return !redRanges.some(function (redRange) {
+          return range.start === redRange.start && range.end === redRange.end;
+        });
+      });
+
+      if (!redRanges.length && !orangeRanges.length) {
+        return "D) " + escapeHtml(dText);
+      }
+
+      return "D) " + highlightImpactRangesByLevel(
+        dText,
+        redRanges,
+        orangeRanges
+      );
+    }
+
+    function collectImpactTextRanges(
+      dText,
+      notamStart,
+      notamEnd,
+      flightWindows
+    ) {
       const ranges = [];
 
-      /* YYYYMMDD HHMM-HHMM / YYMMDD HHMM-HHMM */
       collectMatchedRanges(
         dText,
         /\b(\d{8}|\d{6})\s+(\d{4})\s*-\s*(\d{4})\b/g,
@@ -2473,7 +2516,6 @@
         ranges
       );
 
-      /* DD HHMM-HHMM */
       collectMatchedRanges(
         dText,
         /\b(\d{2})\s+(\d{4})\s*-\s*(\d{4})\b/g,
@@ -2486,30 +2528,28 @@
         ranges
       );
 
-      /* 날짜 없이 HHMM-HHMM만 반복되는 D) */
       const dateQualifiedSpans = getDateQualifiedScheduleSpans(dText);
       const timeRegex = /\b(\d{4})\s*-\s*(\d{4})\b/g;
-      let m;
+      let match;
 
-      while ((m = timeRegex.exec(dText)) !== null) {
-        /*
-         * "14 0150-0250"처럼 날짜가 붙은 시간은 recurring으로
-         * 다시 해석하지 않는다. 실제로 매일 반복되는 순수 HHMM-HHMM만 처리한다.
-         */
+      while ((match = timeRegex.exec(dText)) !== null) {
         if (dateQualifiedSpans.some(function (span) {
-          return m.index >= span.start && timeRegex.lastIndex <= span.end;
-        })) continue;
+          return (
+            match.index >= span.start &&
+            timeRegex.lastIndex <= span.end
+          );
+        })) {
+          continue;
+        }
 
         if (recurringRangeHitsFlight(
-          m[1], m[2], notamStart, notamEnd, flightWindows
+          match[1], match[2], notamStart, notamEnd, flightWindows
         )) {
-          ranges.push({ start: m.index, end: timeRegex.lastIndex });
+          ranges.push({ start: match.index, end: timeRegex.lastIndex });
         }
       }
 
-      if (!ranges.length) return "D) " + escapeHtml(dText);
-
-      return "D) " + highlightImpactRanges(dText, mergeImpactRanges(ranges));
+      return mergeImpactRanges(ranges);
     }
 
     function getDateQualifiedScheduleSpans(text) {
@@ -2532,7 +2572,7 @@
       return spans;
     }
 
-    function getScheduleImpactWindows(schedule) {
+    function getScheduleImpactWindows(schedule, marginMinutes) {
       /*
        * 백엔드 버전에 따라 스케줄 필드명이 달라도 처리한다.
        * ISO 원본값을 우선하고, 화면 표시용 Label 값도 fallback으로 사용한다.
@@ -2580,7 +2620,11 @@
       ]);
 
       const direction = String(schedule.direction || "").toUpperCase();
-      const impactMarginMs = 30 * 60 * 1000;
+      const normalizedMarginMinutes =
+        Number.isFinite(Number(marginMinutes))
+          ? Number(marginMinutes)
+          : 30;
+      const impactMarginMs = normalizedMarginMinutes * 60 * 1000;
       const windows = [];
 
       function addPointWindow(date) {
@@ -2875,6 +2919,55 @@
         html += escapeHtml(text.slice(cursor, range.start));
         html += '<span class="impact-time-highlight">' +
           escapeHtml(text.slice(range.start, range.end)) +
+          "</span>";
+        cursor = range.end;
+      });
+
+      html += escapeHtml(text.slice(cursor));
+      return html;
+    }
+
+    function highlightImpactRangesByLevel(
+      text,
+      redRanges,
+      orangeRanges
+    ) {
+      const taggedRanges = [];
+
+      redRanges.forEach(function (range) {
+        taggedRanges.push({
+          start: range.start,
+          end: range.end,
+          level: "red"
+        });
+      });
+
+      orangeRanges.forEach(function (range) {
+        taggedRanges.push({
+          start: range.start,
+          end: range.end,
+          level: "orange"
+        });
+      });
+
+      taggedRanges.sort(function (a, b) {
+        if (a.start !== b.start) return a.start - b.start;
+        if (a.level === b.level) return 0;
+        return a.level === "red" ? -1 : 1;
+      });
+
+      let html = "";
+      let cursor = 0;
+
+      taggedRanges.forEach(function (range) {
+        if (range.end <= cursor) return;
+
+        const start = Math.max(range.start, cursor);
+        html += escapeHtml(text.slice(cursor, start));
+        html += '<span class="impact-time-highlight' +
+          (range.level === "orange" ? " orange" : "") +
+          '">' +
+          escapeHtml(text.slice(start, range.end)) +
           "</span>";
         cursor = range.end;
       });
