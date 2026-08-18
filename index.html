@@ -2487,12 +2487,17 @@
       );
 
       /* 날짜 없이 HHMM-HHMM만 반복되는 D) */
+      const dateQualifiedSpans = getDateQualifiedScheduleSpans(dText);
       const timeRegex = /\b(\d{4})\s*-\s*(\d{4})\b/g;
       let m;
 
       while ((m = timeRegex.exec(dText)) !== null) {
-        if (ranges.some(function (r) {
-          return m.index >= r.start && timeRegex.lastIndex <= r.end;
+        /*
+         * "14 0150-0250"처럼 날짜가 붙은 시간은 recurring으로
+         * 다시 해석하지 않는다. 실제로 매일 반복되는 순수 HHMM-HHMM만 처리한다.
+         */
+        if (dateQualifiedSpans.some(function (span) {
+          return m.index >= span.start && timeRegex.lastIndex <= span.end;
         })) continue;
 
         if (recurringRangeHitsFlight(
@@ -2505,6 +2510,26 @@
       if (!ranges.length) return "D) " + escapeHtml(dText);
 
       return "D) " + highlightImpactRanges(dText, mergeImpactRanges(ranges));
+    }
+
+    function getDateQualifiedScheduleSpans(text) {
+      const spans = [];
+      const patterns = [
+        /\b(?:\d{8}|\d{6})\s+\d{4}\s*-\s*\d{4}\b/g,
+        /\b\d{2}\s+\d{4}\s*-\s*\d{4}\b/g
+      ];
+
+      patterns.forEach(function (regex) {
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          spans.push({
+            start: match.index,
+            end: regex.lastIndex
+          });
+        }
+      });
+
+      return spans;
     }
 
     function getScheduleImpactWindows(schedule) {
@@ -3152,6 +3177,46 @@
         schedule.etaLabel
       ]);
 
+      const direction = String(
+        schedule.direction || ""
+      ).toUpperCase();
+
+      /*
+       * 한국 출발 국제선은 ETD만, 한국 도착 국제선은 ETA만 검사한다.
+       * 국내선은 ETD와 ETA를 각각 검사한다.
+       */
+      if (
+        direction === "KOREA_DEPARTURE" ||
+        direction === "INTERNATIONAL_DEPARTURE" ||
+        direction === "DEPARTURE" ||
+        direction === "DEP"
+      ) {
+        return {
+          departure: getSchedulePointImpactLevel(notam, departure),
+          arrival: null
+        };
+      }
+
+      if (
+        direction === "KOREA_ARRIVAL" ||
+        direction === "INTERNATIONAL_ARRIVAL" ||
+        direction === "ARRIVAL" ||
+        direction === "ARR"
+      ) {
+        return {
+          departure: null,
+          arrival: getSchedulePointImpactLevel(notam, arrival)
+        };
+      }
+
+      if (direction === "DOMESTIC") {
+        return {
+          departure: getSchedulePointImpactLevel(notam, departure),
+          arrival: getSchedulePointImpactLevel(notam, arrival)
+        };
+      }
+
+      /* 방향값이 없는 구형 응답에 대한 호환 처리 */
       return {
         departure: getSchedulePointImpactLevel(notam, departure),
         arrival: getSchedulePointImpactLevel(notam, arrival)
@@ -3226,8 +3291,19 @@
           })) return true;
         }
 
+        const dateQualifiedSpans = getDateQualifiedScheduleSpans(dText);
         const timeRegex = /\b(\d{4})\s*-\s*(\d{4})\b/g;
         while ((match = timeRegex.exec(dText)) !== null) {
+          /* 날짜가 명시된 구간은 recurring 구간으로 다시 판정하지 않는다. */
+          if (dateQualifiedSpans.some(function (span) {
+            return (
+              match.index >= span.start &&
+              timeRegex.lastIndex <= span.end
+            );
+          })) {
+            continue;
+          }
+
           parsedAnyDRange = true;
           if (recurringRangeHitsFlight(
             match[1], match[2], notamStart, notamEnd, windows
