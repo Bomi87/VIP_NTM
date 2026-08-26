@@ -1000,9 +1000,12 @@
         -webkit-overflow-scrolling: touch;
       }
 
+      /* 모바일: 지도는 필터 바로 아래 / NOTAM 목록 바로 위에 표시 */
       .map-wrap {
-        min-height: 65vh;
-        height: 65vh;
+        width: 100%;
+        min-height: 42vh;
+        height: 42vh;
+        border-bottom: 1px solid var(--line);
       }
 
       .header {
@@ -1661,6 +1664,30 @@
         "actualRouteSelect"
       );
 
+    /*
+     * 모바일에서는 지도를 필터 아래 / NOTAM 목록 위로 옮기기 위해
+     * 레이아웃 요소를 별도로 참조한다.
+     */
+    const layoutElement =
+      document.querySelector(
+        ".layout"
+      );
+
+    const sidebarElement =
+      document.querySelector(
+        ".sidebar"
+      );
+
+    const controlsElement =
+      document.querySelector(
+        ".controls"
+      );
+
+    const mapWrapElement =
+      document.querySelector(
+        ".map-wrap"
+      );
+
 
     const mobileScrollbarTrack =
       document.getElementById(
@@ -1751,14 +1778,20 @@
 
     window.addEventListener(
       "resize",
-      updateMobileScrollbar
+      function () {
+        updateResponsiveMapPosition();
+        updateMobileScrollbar();
+      }
     );
 
     window.addEventListener(
       "orientationchange",
       function () {
         window.setTimeout(
-          updateMobileScrollbar,
+          function () {
+            updateResponsiveMapPosition();
+            updateMobileScrollbar();
+          },
           120
         );
       }
@@ -1818,13 +1851,79 @@
     })();
 
 
+    /*
+     * 화면 폭에 따라 지도 DOM 위치를 변경한다.
+     *
+     * 모바일(<= 800px)
+     *   요약 -> 필터 -> 지도 -> NOTAM 목록
+     *
+     * PC(> 800px)
+     *   기존처럼 왼쪽 sidebar / 오른쪽 지도
+     */
+    function updateResponsiveMapPosition() {
+      if (
+        !layoutElement ||
+        !sidebarElement ||
+        !controlsElement ||
+        !mapWrapElement ||
+        !notamListElement
+      ) {
+        return;
+      }
+
+      const isMobile =
+        window.matchMedia(
+          "(max-width: 800px)"
+        ).matches;
+
+      if (isMobile) {
+        /*
+         * sidebar 안에서 notamList 바로 앞에 삽입하면
+         * 필터(controls) 아래, NOTAM 목록 위에 위치한다.
+         */
+        if (
+          mapWrapElement.parentElement !== sidebarElement ||
+          mapWrapElement.nextElementSibling !== notamListElement
+        ) {
+          sidebarElement.insertBefore(
+            mapWrapElement,
+            notamListElement
+          );
+        }
+      } else {
+        /* PC에서는 원래 구조로 복귀 */
+        if (
+          mapWrapElement.parentElement !== layoutElement
+        ) {
+          layoutElement.appendChild(
+            mapWrapElement
+          );
+        }
+      }
+
+      /*
+       * Leaflet은 부모 DOM 위치/크기가 바뀐 뒤
+       * invalidateSize()가 필요하다.
+       */
+      window.setTimeout(
+        function () {
+          map.invalidateSize();
+        },
+        80
+      );
+    }
+
+
     async function initializeApp() {
+      updateResponsiveMapPosition();
+
       await loadImpactData(
         false
       );
 
       await autoLoadRouteFromUrl();
 
+      map.invalidateSize();
       updateMobileScrollbar();
     }
 
