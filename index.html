@@ -2604,28 +2604,21 @@
     ) {
       const ranges = [];
 
-      collectMatchedRanges(
-        dText,
-        /\b(\d{8}|\d{6})\s+(\d{4})\s*-\s*(\d{4})\b/g,
-        function (m) {
-          const date = parseCompactUtcDate(m[1]);
-          return date ? makeUtcRange(date, m[2], m[3]) : null;
-        },
-        flightWindows,
-        ranges
-      );
-
-      collectMatchedRanges(
-        dText,
-        /\b(\d{2})\s+(\d{4})\s*-\s*(\d{4})\b/g,
-        function (m) {
-          if (!notamStart) return null;
-          const date = resolveUtcDay(notamStart, Number(m[1]));
-          return makeUtcRange(date, m[2], m[3]);
-        },
-        flightWindows,
-        ranges
-      );
+      /*
+       * 날짜 뒤에 시간대가 여러 개 오는 형식도 모두 같은 날짜에 묶는다.
+       * 예: 08 0050-0140 0535-0625
+       * 기존에는 두 번째 0535-0625를 매일 반복시간으로 오인할 수 있었다.
+       */
+      const datedEntries = getDateQualifiedScheduleEntries(dText, notamStart);
+      datedEntries.forEach(function (entry) {
+        if (flightWindows.some(function (flight) {
+          return rangesOverlap(
+            entry.range.start, entry.range.end, flight.start, flight.end
+          );
+        })) {
+          ranges.push({ start: entry.start, end: entry.end });
+        }
+      });
 
       const dateQualifiedSpans = getDateQualifiedScheduleSpans(dText);
       const timeRegex = /\b(\d{4})\s*-\s*(\d{4})\b/g;
@@ -2652,23 +2645,50 @@
     }
 
     function getDateQualifiedScheduleSpans(text) {
-      const spans = [];
-      const patterns = [
-        /\b(?:\d{8}|\d{6})\s+\d{4}\s*-\s*\d{4}\b/g,
-        /\b\d{2}\s+\d{4}\s*-\s*\d{4}\b/g
-      ];
+      return getDateQualifiedScheduleEntries(text, null).map(function (entry) {
+        return { start: entry.start, end: entry.end };
+      });
+    }
 
-      patterns.forEach(function (regex) {
-        let match;
-        while ((match = regex.exec(text)) !== null) {
-          spans.push({
-            start: match.index,
-            end: regex.lastIndex
+    function getDateQualifiedScheduleEntries(text, notamStart) {
+      const entries = [];
+      const groupRegex = /\b(\d{8}|\d{6}|\d{2})\s+((?:\d{4}\s*-\s*\d{4})(?:\s+(?:\d{4}\s*-\s*\d{4}))*)/g;
+      let groupMatch;
+
+      while ((groupMatch = groupRegex.exec(String(text || ""))) !== null) {
+        const dateToken = groupMatch[1];
+        let date;
+
+        if (dateToken.length === 2) {
+          if (!notamStart) {
+            /* span 계산에는 날짜 객체가 필요 없으므로 임시 날짜를 사용한다. */
+            date = new Date(Date.UTC(2000, 0, Number(dateToken)));
+          } else {
+            date = resolveUtcDay(notamStart, Number(dateToken));
+          }
+        } else {
+          date = parseCompactUtcDate(dateToken);
+        }
+
+        if (!date || !Number.isFinite(date.getTime())) continue;
+
+        const timesText = groupMatch[2];
+        const timesOffset = groupMatch.index + groupMatch[0].indexOf(timesText);
+        const timeRegex = /(\d{4})\s*-\s*(\d{4})/g;
+        let timeMatch;
+
+        while ((timeMatch = timeRegex.exec(timesText)) !== null) {
+          const range = makeUtcRange(date, timeMatch[1], timeMatch[2]);
+          if (!range) continue;
+          entries.push({
+            start: timesOffset + timeMatch.index,
+            end: timesOffset + timeRegex.lastIndex,
+            range: range
           });
         }
-      });
+      }
 
-      return spans;
+      return entries;
     }
 
     function getScheduleImpactWindows(schedule, marginMinutes) {
@@ -3460,23 +3480,9 @@
       let match;
 
       if (dText) {
-        const fullDateRegex = /\b(\d{8}|\d{6})\s+(\d{4})\s*-\s*(\d{4})\b/g;
-        while ((match = fullDateRegex.exec(dText)) !== null) {
-          const date = parseCompactUtcDate(match[1]);
-          const range = date ? makeUtcRange(date, match[2], match[3]) : null;
-          if (!range) continue;
-          parsedAnyDRange = true;
-          if (windows.some(function (w) {
-            return rangesOverlap(range.start, range.end, w.start, w.end);
-          })) return true;
-        }
-
-        const dayRegex = /\b(\d{2})\s+(\d{4})\s*-\s*(\d{4})\b/g;
-        while ((match = dayRegex.exec(dText)) !== null) {
-          if (!notamStart) continue;
-          const date = resolveUtcDay(notamStart, Number(match[1]));
-          const range = makeUtcRange(date, match[2], match[3]);
-          if (!range) continue;
+        const datedEntries = getDateQualifiedScheduleEntries(dText, notamStart);
+        for (let i = 0; i < datedEntries.length; i += 1) {
+          const range = datedEntries[i].range;
           parsedAnyDRange = true;
           if (windows.some(function (w) {
             return rangesOverlap(range.start, range.end, w.start, w.end);
