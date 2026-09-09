@@ -5,7 +5,7 @@
 
   <meta
     name="viewport"
-    content="width=device-width, initial-scale=1.0"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
   >
 
   <title>RKRR VIP NTM 분석</title>
@@ -1080,11 +1080,11 @@
         margin-left: 0;
       }
 
-      /* 항공기 / 운항 구분 / NOTAM 분류 / Search를 모바일에서도 한 줄로 배치 */
+      /* 모바일: 4개 컨트롤을 한 줄에 더 컴팩트하게 배치 */
       .controls {
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 4px;
-        padding: 8px 7px;
+        gap: 2px;
+        padding: 6px 4px;
       }
 
       .control-group,
@@ -1094,8 +1094,8 @@
       }
 
       .control-group label {
-        margin-bottom: 3px;
-        font-size: 9px;
+        margin-bottom: 2px;
+        font-size: 8px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -1104,30 +1104,39 @@
       .control-group select {
         min-width: 0;
         width: 100%;
-        height: 34px;
-        padding: 4px 16px 4px 5px;
-        font-size: 9px;
-        border-radius: 6px;
+        height: 30px;
+        padding: 2px 13px 2px 4px;
+        font-size: 8px;
+        border-radius: 5px;
       }
 
       .notam-search-wrap {
-        grid-template-columns: minmax(0, 1fr) 28px;
-        gap: 3px;
+        width: 100%;
+        min-width: 0;
+        grid-template-columns: minmax(0, 1fr) 22px;
+        gap: 2px;
       }
 
-      /* iOS 입력 시 자동 확대를 막기 위해 입력란만 16px 유지 */
+      /* 16px는 iOS 입력 포커스 자동확대 방지용. 높이/패딩만 줄여 시각적으로 컴팩트하게 유지 */
       .notam-search-input {
-        height: 34px;
-        padding: 4px 5px;
+        min-width: 0;
+        width: 100%;
+        height: 30px;
+        padding: 2px 3px;
         font-size: 16px;
-        border-radius: 6px;
+        line-height: 1;
+        border-radius: 5px;
       }
 
       .notam-search-button {
-        width: 28px;
-        height: 34px;
-        font-size: 13px;
-        border-radius: 6px;
+        min-width: 0;
+        width: 22px;
+        height: 30px;
+        padding: 0;
+        font-size: 11px;
+        line-height: 1;
+        border-radius: 5px;
+        touch-action: manipulation;
       }
     }
 
@@ -1145,11 +1154,11 @@
         grid-template-columns: repeat(2, 1fr);
       }
 
-      /* 작은 모바일에서도 4개 컨트롤을 한 줄로 유지 */
+      /* 작은 모바일: 4개 모두 더 작게, Search 버튼이 절대 밖으로 넘치지 않도록 */
       .controls {
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 3px;
-        padding: 7px 6px;
+        gap: 2px;
+        padding: 5px 3px;
       }
 
       .control-group:last-child {
@@ -1157,30 +1166,41 @@
       }
 
       .control-group label {
-        font-size: 8px;
+        font-size: 7px;
+        margin-bottom: 2px;
       }
 
       .control-group select {
-        height: 32px;
-        padding: 3px 14px 3px 4px;
-        font-size: 8px;
+        height: 28px;
+        padding: 2px 11px 2px 3px;
+        font-size: 7.5px;
+        border-radius: 5px;
       }
 
       .notam-search-wrap {
-        grid-template-columns: minmax(0, 1fr) 25px;
-        gap: 2px;
+        width: 100%;
+        grid-template-columns: minmax(0, 1fr) 20px;
+        gap: 1px;
       }
 
       .notam-search-input {
-        height: 32px;
-        padding: 3px 4px;
+        min-width: 0;
+        height: 28px;
+        padding: 2px 3px;
         font-size: 16px;
+        line-height: 1;
+        border-radius: 5px;
       }
 
       .notam-search-button {
-        width: 25px;
-        height: 32px;
-        font-size: 12px;
+        min-width: 0;
+        width: 20px;
+        height: 28px;
+        padding: 0;
+        font-size: 10px;
+        line-height: 1;
+        border-radius: 5px;
+        touch-action: manipulation;
       }
 
       .route-button {
@@ -1870,7 +1890,10 @@
 
     notamSearchButton.addEventListener(
       "click",
-      searchNotamByNumber
+      function () {
+        notamSearchInput.blur();
+        searchNotamByNumber();
+      }
     );
 
     notamSearchInput.addEventListener(
@@ -1878,6 +1901,7 @@
       function (event) {
         if (event.key === "Enter") {
           event.preventDefault();
+          notamSearchInput.blur();
           searchNotamByNumber();
         }
       }
@@ -5469,6 +5493,9 @@
         notamSearchInput.focus();
         return;
       }
+
+      /* 모바일 브라우저의 입력 포커스 자동 확대/키보드 상태를 먼저 해제 */
+      notamSearchInput.blur();
 
       const found =
         findNotamBySearchValue(
