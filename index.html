@@ -366,8 +366,8 @@
 
     .controls {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 7px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
 
       padding: 9px 11px;
 
@@ -400,6 +400,68 @@
       color: var(--text);
 
       font-size: 11px;
+    }
+
+    /* NOTAM 번호 직접 검색: 선택창과 구별되도록 연한 노란색 */
+    .notam-search-wrap {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 30px;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .notam-search-input {
+      min-width: 0;
+      width: 100%;
+      height: 33px;
+      padding: 6px 7px;
+
+      border: 1px solid #f59e0b;
+      border-radius: 7px;
+
+      background: #fff7d6;
+      color: var(--text);
+
+      font-size: 11px;
+      font-weight: 700;
+      outline: none;
+    }
+
+    .notam-search-input::placeholder {
+      color: #b7791f;
+      opacity: 0.85;
+    }
+
+    .notam-search-input:focus {
+      border-color: #d97706;
+      background: #fff3bf;
+      box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.18);
+    }
+
+    .notam-search-button {
+      width: 30px;
+      height: 33px;
+      padding: 0;
+
+      border: 1px solid #f59e0b;
+      border-radius: 7px;
+
+      background: #fef0c7;
+      color: #b54708;
+
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .notam-search-button:hover {
+      background: #fde68a;
+    }
+
+    .notam-search-input.search-not-found {
+      border-color: var(--red);
+      background: #fee4e2;
+      box-shadow: 0 0 0 2px rgba(217, 45, 32, 0.12);
     }
 
     /********************************************************
@@ -948,11 +1010,12 @@
       }
 
       .controls {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 5px;
       }
 
       .control-group:last-child {
-        grid-column: 1 / -1;
+        grid-column: auto;
       }
     }
 
@@ -1017,10 +1080,10 @@
         margin-left: 0;
       }
 
-      /* 항공기 / 운항 구분 / NOTAM 분류를 모바일에서도 한 줄로 배치 */
+      /* 항공기 / 운항 구분 / NOTAM 분류 / Search를 모바일에서도 한 줄로 배치 */
       .controls {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 5px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 4px;
         padding: 8px 7px;
       }
 
@@ -1042,8 +1105,28 @@
         min-width: 0;
         width: 100%;
         height: 34px;
-        padding: 4px 20px 4px 6px;
-        font-size: 10px;
+        padding: 4px 16px 4px 5px;
+        font-size: 9px;
+        border-radius: 6px;
+      }
+
+      .notam-search-wrap {
+        grid-template-columns: minmax(0, 1fr) 28px;
+        gap: 3px;
+      }
+
+      /* iOS 입력 시 자동 확대를 막기 위해 입력란만 16px 유지 */
+      .notam-search-input {
+        height: 34px;
+        padding: 4px 5px;
+        font-size: 16px;
+        border-radius: 6px;
+      }
+
+      .notam-search-button {
+        width: 28px;
+        height: 34px;
+        font-size: 13px;
         border-radius: 6px;
       }
     }
@@ -1062,10 +1145,10 @@
         grid-template-columns: repeat(2, 1fr);
       }
 
-      /* 작은 모바일에서도 3개 필터를 한 줄로 유지 */
+      /* 작은 모바일에서도 4개 컨트롤을 한 줄로 유지 */
       .controls {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 4px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 3px;
         padding: 7px 6px;
       }
 
@@ -1079,8 +1162,25 @@
 
       .control-group select {
         height: 32px;
-        padding: 3px 17px 3px 5px;
-        font-size: 9px;
+        padding: 3px 14px 3px 4px;
+        font-size: 8px;
+      }
+
+      .notam-search-wrap {
+        grid-template-columns: minmax(0, 1fr) 25px;
+        gap: 2px;
+      }
+
+      .notam-search-input {
+        height: 32px;
+        padding: 3px 4px;
+        font-size: 16px;
+      }
+
+      .notam-search-button {
+        width: 25px;
+        height: 32px;
+        font-size: 12px;
       }
 
       .route-button {
@@ -1317,6 +1417,36 @@
               <option value="IMPACT">영향 NTM</option>
               <option value="OTHER">기타 NTM</option>
             </select>
+          </div>
+
+          <div class="control-group">
+            <label for="notamSearchInput">
+              Search
+            </label>
+
+            <div class="notam-search-wrap">
+              <input
+                id="notamSearchInput"
+                class="notam-search-input"
+                type="text"
+                inputmode="text"
+                autocomplete="off"
+                autocapitalize="characters"
+                spellcheck="false"
+                placeholder="D2679"
+                aria-label="NOTAM 번호 검색"
+              >
+
+              <button
+                id="notamSearchButton"
+                class="notam-search-button"
+                type="button"
+                title="NOTAM 검색"
+                aria-label="NOTAM 검색"
+              >
+                🔍
+              </button>
+            </div>
           </div>
 
         </section>
@@ -1624,6 +1754,16 @@
         "classificationFilter"
       );
 
+    const notamSearchInput =
+      document.getElementById(
+        "notamSearchInput"
+      );
+
+    const notamSearchButton =
+      document.getElementById(
+        "notamSearchButton"
+      );
+
     const loadingOverlay =
       document.getElementById(
         "loadingOverlay"
@@ -1726,6 +1866,30 @@
     classificationFilter.addEventListener(
       "change",
       applyFilters
+    );
+
+    notamSearchButton.addEventListener(
+      "click",
+      searchNotamByNumber
+    );
+
+    notamSearchInput.addEventListener(
+      "keydown",
+      function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          searchNotamByNumber();
+        }
+      }
+    );
+
+    notamSearchInput.addEventListener(
+      "input",
+      function () {
+        notamSearchInput.classList.remove(
+          "search-not-found"
+        );
+      }
     );
 
     hl8080RouteButton.addEventListener(
@@ -5215,6 +5379,139 @@
           false
         );
       }
+    }
+
+
+    /********************************************************
+     * NOTAM 번호 Search
+     *
+     * 예: D2679 또는 D2679/26 모두 허용.
+     * 현재 필터에서 숨겨진 NOTAM도 찾을 수 있도록
+     * 검색 성공 시 필요한 경우 필터를 전체로 되돌린 뒤
+     * 기존 selectNotam()을 그대로 사용해 Zoom + Popup을 연다.
+     ********************************************************/
+
+    function normalizeNotamSearchValue(value) {
+      return String(value || "")
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, "");
+    }
+
+
+    function findNotamBySearchValue(searchValue) {
+      if (
+        !state.rawData ||
+        !Array.isArray(state.rawData.notams)
+      ) {
+        return null;
+      }
+
+      const query =
+        normalizeNotamSearchValue(
+          searchValue
+        );
+
+      if (!query) {
+        return null;
+      }
+
+      /* 먼저 D2679/26 같은 완전 일치 */
+      let found =
+        state.rawData.notams.find(
+          function (notam) {
+            return (
+              normalizeNotamSearchValue(
+                notam.notamNo
+              ) === query
+            );
+          }
+        );
+
+      if (found) {
+        return found;
+      }
+
+      /* D2679 입력 시 D2679/26을 찾는다. */
+      const queryBase =
+        query.split("/")[0];
+
+      found =
+        state.rawData.notams.find(
+          function (notam) {
+            const notamNo =
+              normalizeNotamSearchValue(
+                notam.notamNo
+              );
+
+            return (
+              notamNo.split("/")[0] ===
+              queryBase
+            );
+          }
+        );
+
+      return found || null;
+    }
+
+
+    function searchNotamByNumber() {
+      const query =
+        normalizeNotamSearchValue(
+          notamSearchInput.value
+        );
+
+      notamSearchInput.classList.remove(
+        "search-not-found"
+      );
+
+      if (!query) {
+        notamSearchInput.focus();
+        return;
+      }
+
+      const found =
+        findNotamBySearchValue(
+          query
+        );
+
+      if (!found) {
+        notamSearchInput.classList.add(
+          "search-not-found"
+        );
+        notamSearchInput.select();
+        return;
+      }
+
+      /*
+       * 해당 NOTAM이 항공기/운항구분/분류 필터 때문에
+       * 지도 레이어에서 빠져 있을 수 있으므로 전체로 복원한다.
+       */
+      const currentlyVisible =
+        state.notamMapLayers.has(
+          found.notamNo
+        );
+
+      if (!currentlyVisible) {
+        aircraftFilter.value = "ALL";
+        directionFilter.value = "ALL";
+        classificationFilter.value = "ALL";
+        applyFilters();
+      }
+
+      notamSearchInput.value =
+        found.notamNo;
+
+      /* renderNotamMap까지 끝난 다음 기존 선택 동작 실행 */
+      window.requestAnimationFrame(
+        function () {
+          selectNotam(
+            found.notamNo
+          );
+
+          notamSearchInput.blur();
+        }
+      );
     }
 
 
